@@ -1,7 +1,7 @@
 # CLAUDE.md — Personal Task Tracker
 
 ## Проектийн тойм
-Personal Task Tracker — Node.js/Express REST API + Vanilla JS frontend + SQLite.
+Personal Task Tracker — Node.js/Express REST API + Vanilla JS frontend + MySQL/MariaDB.
 Код нь `partB/src/` дотор байна.
 
 ## Build & Run Commands
@@ -32,7 +32,7 @@ partB/src/
   controllers/      — HTTP layer (request/response)
   services/         — Business logic, DB queries
   middleware/       — validator, error handler
-  db/database.js    — SQLite init, connection
+  db/database.js    — MySQL pool, schema init, connection
 partB/public/       — Static frontend files
 partB/tests/        — Jest тест файлууд
 .claude/commands/   — Custom slash commands
@@ -61,14 +61,14 @@ partB/tests/        — Jest тест файлууд
 - HTTP status code: 400 (validation), 404 (not found), 500 (server error)
 
 ### Database
-- `better-sqlite3` — synchronous, async/await хэрэглэхгүй
+- `mysql2/promise` — async/await хэрэглэнэ
 - Prepared statement заавал ашиглана — SQL injection хамгаалалт
 - Schema init: `src/db/database.js`-д `initSchema()` функц
 
 ## Testing Standards
 - Jest + Supertest
 - Test файл нэр: `*.test.js`
-- In-memory SQLite тест тус бүрд (`':memory:'`)
+- `.env.test` доторх тусдаа MySQL test database
 - Mock: external service-д, DB-д биш
 - Coverage target: ≥70% (lines)
 

@@ -1,6 +1,6 @@
 'use strict';
 
-const VALID_STATUS   = new Set(['todo', 'in-progress', 'done']);
+const VALID_STATUS   = new Set(['todo', 'in-progress', 'in-review', 'done', 'cancelled']);
 const VALID_PRIORITY = new Set(['low', 'medium', 'high', 'urgent']);
 
 function validateTask(req, res, next) {

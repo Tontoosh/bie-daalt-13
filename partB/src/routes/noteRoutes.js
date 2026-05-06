@@ -1,0 +1,10 @@
+'use strict';
+const { Router } = require('express');
+const c = require('../controllers/noteController');
+const r = Router();
+r.get('/',       c.listNotes);
+r.get('/:id',    c.getNote);
+r.post('/',      c.createNote);
+r.patch('/:id',  c.updateNote);
+r.delete('/:id', c.deleteNote);
+module.exports = r;

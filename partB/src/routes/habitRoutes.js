@@ -1,0 +1,13 @@
+'use strict';
+const { Router } = require('express');
+const c = require('../controllers/habitController');
+const r = Router();
+r.get('/',              c.listHabits);
+r.get('/:id',           c.getHabit);
+r.post('/',             c.createHabit);
+r.patch('/:id',         c.updateHabit);
+r.delete('/:id',        c.deleteHabit);
+r.post('/:id/log',      c.logHabit);
+r.get('/:id/logs',      c.getLogs);
+r.get('/:id/streak',    c.getStreak);
+module.exports = r;

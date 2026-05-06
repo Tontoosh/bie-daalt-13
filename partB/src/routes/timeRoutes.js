@@ -1,0 +1,11 @@
+'use strict';
+const { Router } = require('express');
+const c = require('../controllers/timeController');
+const r = Router();
+r.get('/',           c.listEntries);
+r.get('/totals',     c.getTotals);
+r.post('/',          c.createEntry);
+r.post('/start',     c.startTimer);
+r.patch('/:id/stop', c.stopTimer);
+r.delete('/:id',     c.deleteEntry);
+module.exports = r;

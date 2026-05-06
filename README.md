@@ -23,7 +23,7 @@ npm run dev
 
 ## Stack
 - Node.js v20 + Express v4
-- SQLite (better-sqlite3)
+- MySQL / MariaDB (`mysql2/promise`)
 - Vanilla HTML/CSS/JS
 - Jest + Supertest
 

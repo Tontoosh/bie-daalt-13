@@ -1,0 +1,10 @@
+'use strict';
+const { Router } = require('express');
+const c = require('../controllers/calendarController');
+const r = Router();
+r.get('/',       c.listEvents);
+r.get('/:id',    c.getEvent);
+r.post('/',      c.createEvent);
+r.patch('/:id',  c.updateEvent);
+r.delete('/:id', c.deleteEvent);
+module.exports = r;

@@ -1,0 +1,10 @@
+'use strict';
+const { Router } = require('express');
+const c = require('../controllers/notificationController');
+const r = Router();
+r.get('/',            c.listNotifications);
+r.get('/count',       c.getCount);
+r.post('/read-all',   c.markAllRead);
+r.patch('/:id/read',  c.markRead);
+r.delete('/:id',      c.deleteNotification);
+module.exports = r;

@@ -1,0 +1,11 @@
+'use strict';
+const { Router } = require('express');
+const c = require('../controllers/projectController');
+const r = Router();
+r.get('/',            c.listProjects);
+r.get('/:id',         c.getProject);
+r.post('/',           c.createProject);
+r.patch('/:id',       c.updateProject);
+r.delete('/:id',      c.deleteProject);
+r.get('/:id/members', c.getMembers);
+module.exports = r;

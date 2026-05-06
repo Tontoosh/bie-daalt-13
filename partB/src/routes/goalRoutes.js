@@ -1,0 +1,14 @@
+'use strict';
+const { Router } = require('express');
+const c = require('../controllers/goalController');
+const r = Router();
+r.get('/',                    c.listGoals);
+r.get('/:id',                 c.getGoal);
+r.post('/',                   c.createGoal);
+r.patch('/:id',               c.updateGoal);
+r.delete('/:id',              c.deleteGoal);
+r.get('/:id/milestones',      c.getMilestones);
+r.post('/:id/milestones',     c.addMilestone);
+r.patch('/:id/milestones/:mid', c.updateMilestone);
+r.delete('/:id/milestones/:mid',c.deleteMilestone);
+module.exports = r;

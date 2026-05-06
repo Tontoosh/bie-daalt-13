@@ -40,7 +40,8 @@ async function verifyPassword(email, password) {
   if (!user) return null;
   const match = await bcrypt.compare(password, user.password_hash);
   if (!match) return null;
-  const { password_hash: _, ...safe } = user;
+  delete user.password_hash;
+  const safe = user;
   return safe;
 }
 
