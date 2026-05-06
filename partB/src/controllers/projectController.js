@@ -19,4 +19,19 @@ async function deleteProject(req, res, next) {
 async function getMembers(req, res, next) {
   try { res.json(await s.getMembers(Number(req.params.id))); } catch(e){ next(e); }
 }
-module.exports = { listProjects, getProject, createProject, updateProject, deleteProject, getMembers };
+async function addMember(req, res, next) {
+  try {
+    await s.addMember(Number(req.params.id), Number(req.body.userId), req.body.role);
+    res.status(204).end();
+  } catch(e){ next(e); }
+}
+async function removeMember(req, res, next) {
+  try {
+    await s.removeMember(Number(req.params.id), Number(req.params.userId));
+    res.status(204).end();
+  } catch(e){ next(e); }
+}
+async function getProjectTasks(req, res, next) {
+  try { res.json(await s.getProjectTasks(Number(req.params.id))); } catch(e){ next(e); }
+}
+module.exports = { listProjects, getProject, createProject, updateProject, deleteProject, getMembers, addMember, removeMember, getProjectTasks };

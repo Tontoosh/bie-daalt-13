@@ -4,14 +4,16 @@ const { getPool } = require('../db/database');
 
 async function getAllTasks({ status, priority, search } = {}) {
   const pool = getPool();
-  let sql = 'SELECT * FROM tasks WHERE 1=1';
+  let sql = `SELECT t.*, u.username as assignee_name
+             FROM tasks t LEFT JOIN users u ON u.id = t.assignee_id
+             WHERE 1=1`;
   const params = [];
 
-  if (status)   { sql += ' AND status = ?';   params.push(status); }
-  if (priority) { sql += ' AND priority = ?'; params.push(priority); }
-  if (search)   { sql += ' AND title LIKE ?'; params.push(`%${search}%`); }
+  if (status)   { sql += ' AND t.status = ?';   params.push(status); }
+  if (priority) { sql += ' AND t.priority = ?'; params.push(priority); }
+  if (search)   { sql += ' AND t.title LIKE ?'; params.push(`%${search}%`); }
 
-  sql += ' ORDER BY created_at DESC';
+  sql += ' ORDER BY t.created_at DESC';
   const [rows] = await pool.execute(sql, params);
   return rows;
 }

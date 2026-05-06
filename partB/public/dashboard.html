@@ -3,40 +3,80 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard – Task Tracker</title>
+  <title>TaskFlow — Dashboard</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="layout">
 
+  <!-- SIDEBAR -->
   <aside class="sidebar">
-    <h2>Task Tracker</h2>
-    <nav>
-      <a href="#" class="nav-link active" onclick="showSection('tasks')">Tasks</a>
-      <a href="#" class="nav-link" onclick="showSection('projects')">Projects</a>
-      <a href="#" class="nav-link" onclick="showSection('notes')">Notes</a>
-      <a href="#" class="nav-link" onclick="showSection('calendar')">Calendar</a>
-      <a href="#" class="nav-link" onclick="showSection('habits')">Habits</a>
-      <a href="#" class="nav-link" onclick="showSection('goals')">Goals</a>
-      <a href="#" class="nav-link" onclick="showSection('time')">Time</a>
-      <a href="#" class="nav-link" onclick="showSection('labels')">Labels</a>
-      <a href="#" class="nav-link" onclick="showSection('notifications')">Notifications <span id="notif-badge"></span></a>
-      <a href="#" class="nav-link" onclick="showSection('settings')">Settings</a>
-    </nav>
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">⚡</div>
+      <span class="sidebar-logo-text">TaskFlow</span>
+    </div>
+
+    <span class="nav-section-title">Workspace</span>
+    <a class="nav-link active" onclick="showSection('tasks')">
+      <span class="nav-icon">✓</span> Tasks
+    </a>
+    <a class="nav-link" onclick="showSection('projects')">
+      <span class="nav-icon">◈</span> Projects
+    </a>
+    <a class="nav-link" onclick="showSection('notes')">
+      <span class="nav-icon">◻</span> Notes
+    </a>
+
+    <span class="nav-section-title">Plan</span>
+    <a class="nav-link" onclick="showSection('calendar')">
+      <span class="nav-icon">⊞</span> Calendar
+    </a>
+    <a class="nav-link" onclick="showSection('goals')">
+      <span class="nav-icon">◎</span> Goals
+    </a>
+    <a class="nav-link" onclick="showSection('habits')">
+      <span class="nav-icon">◉</span> Habits
+    </a>
+
+    <span class="nav-section-title">Track</span>
+    <a class="nav-link" onclick="showSection('time')">
+      <span class="nav-icon">⏱</span> Time
+    </a>
+    <a class="nav-link" onclick="showSection('labels')">
+      <span class="nav-icon">⊛</span> Labels
+    </a>
+
+    <span class="nav-section-title">Account</span>
+    <a class="nav-link" onclick="showSection('notifications')">
+      <span class="nav-icon">◯</span> Notifications
+      <span id="notif-badge"></span>
+    </a>
+    <a class="nav-link" onclick="showSection('settings')">
+      <span class="nav-icon">⊙</span> Settings
+    </a>
+
     <div class="sidebar-bottom">
-      <span id="sidebar-user"></span>
-      <button onclick="logout()">Logout</button>
+      <div class="user-chip">
+        <div class="user-avatar" id="user-avatar-char">?</div>
+        <span class="user-name" id="sidebar-user">User</span>
+        <button class="btn-logout" onclick="logout()" title="Sign out">⏻</button>
+      </div>
     </div>
   </aside>
 
+  <!-- MAIN CONTENT -->
   <main class="main">
 
     <!-- TASKS -->
     <section id="section-tasks">
       <div class="section-header">
-        <h2>Tasks</h2>
-        <button onclick="openModal('task-modal')">+ New Task</button>
+        <div>
+          <div class="section-title">Tasks</div>
+          <div class="section-subtitle">Manage and track your work</div>
+        </div>
+        <button class="btn-new" onclick="openTaskModal()">+ New Task</button>
       </div>
+
       <div class="filters">
         <select id="filter-status" onchange="loadTasks()">
           <option value="">All status</option>
@@ -53,217 +93,459 @@
           <option value="high">High</option>
           <option value="urgent">Urgent</option>
         </select>
-        <input type="text" id="filter-search" placeholder="Search…" oninput="loadTasks()">
+        <input type="text" id="filter-search" placeholder="Search tasks…" oninput="loadTasks()">
       </div>
+
       <table class="data-table">
-        <thead><tr><th>Title</th><th>Status</th><th>Priority</th><th>Due</th><th>Actions</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Assignee</th>
+            <th>Status</th>
+            <th>Priority</th>
+            <th>Due Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
         <tbody id="task-list"></tbody>
       </table>
     </section>
 
     <!-- PROJECTS -->
     <section id="section-projects" style="display:none">
-      <div class="section-header"><h2>Projects</h2><button onclick="openModal('project-modal')">+ New Project</button></div>
+      <div class="section-header">
+        <div>
+          <div class="section-title">Projects</div>
+          <div class="section-subtitle">Collaborate with your team</div>
+        </div>
+        <button class="btn-new" onclick="openModal('project-modal')">+ New Project</button>
+      </div>
       <div id="project-list" class="card-grid"></div>
     </section>
 
     <!-- NOTES -->
     <section id="section-notes" style="display:none">
       <div class="section-header">
-        <h2>Notes</h2>
-        <button onclick="openModal('note-modal')">+ New Note</button>
+        <div>
+          <div class="section-title">Notes</div>
+          <div class="section-subtitle">Capture your ideas</div>
+        </div>
+        <button class="btn-new" onclick="openModal('note-modal')">+ New Note</button>
       </div>
-      <input type="text" id="note-search" placeholder="Search notes…" oninput="loadNotes()" style="width:100%;margin-bottom:14px;padding:8px;border:1px solid #ddd;border-radius:4px">
+      <input class="search-input" type="text" id="note-search" placeholder="Search notes…" oninput="loadNotes()">
       <div id="note-list" class="card-grid"></div>
     </section>
 
     <!-- CALENDAR -->
     <section id="section-calendar" style="display:none">
-      <div class="section-header"><h2>Calendar</h2><button onclick="openModal('event-modal')">+ New Event</button></div>
+      <div class="section-header">
+        <div>
+          <div class="section-title">Calendar</div>
+          <div class="section-subtitle">Schedule and plan ahead</div>
+        </div>
+        <button class="btn-new" onclick="openModal('event-modal')">+ New Event</button>
+      </div>
       <div class="cal-nav">
-        <button onclick="calPrev()">&#8592;</button>
-        <span id="cal-title"></span>
-        <button onclick="calNext()">&#8594;</button>
+        <button class="cal-btn" onclick="calPrev()">‹</button>
+        <span class="cal-nav-title" id="cal-title"></span>
+        <button class="cal-btn" onclick="calNext()">›</button>
+      </div>
+      <div class="cal-weekdays">
+        <div class="cal-weekday">Mon</div><div class="cal-weekday">Tue</div>
+        <div class="cal-weekday">Wed</div><div class="cal-weekday">Thu</div>
+        <div class="cal-weekday">Fri</div><div class="cal-weekday">Sat</div>
+        <div class="cal-weekday">Sun</div>
       </div>
       <div id="cal-grid" class="cal-grid"></div>
-      <div id="event-list-day" style="margin-top:16px"></div>
+      <div id="event-list-day" style="margin-top:20px"></div>
     </section>
 
     <!-- HABITS -->
     <section id="section-habits" style="display:none">
-      <div class="section-header"><h2>Habits</h2><button onclick="openModal('habit-modal')">+ New Habit</button></div>
+      <div class="section-header">
+        <div>
+          <div class="section-title">Habits</div>
+          <div class="section-subtitle">Build daily routines</div>
+        </div>
+        <button class="btn-new" onclick="openModal('habit-modal')">+ New Habit</button>
+      </div>
       <div id="habit-list" class="card-grid"></div>
     </section>
 
     <!-- GOALS -->
     <section id="section-goals" style="display:none">
-      <div class="section-header"><h2>Goals</h2><button onclick="openModal('goal-modal')">+ New Goal</button></div>
+      <div class="section-header">
+        <div>
+          <div class="section-title">Goals</div>
+          <div class="section-subtitle">Track your long-term objectives</div>
+        </div>
+        <button class="btn-new" onclick="openModal('goal-modal')">+ New Goal</button>
+      </div>
       <div id="goal-list" class="card-grid"></div>
     </section>
 
     <!-- TIME TRACKING -->
     <section id="section-time" style="display:none">
-      <div class="section-header"><h2>Time Tracking</h2><button onclick="openModal('time-modal')">+ Log Time</button></div>
-      <div class="timer-box">
-        <span id="timer-display">00:00:00</span>
-        <button id="timer-btn" onclick="toggleTimer()">Start</button>
+      <div class="section-header">
+        <div>
+          <div class="section-title">Time Tracking</div>
+          <div class="section-subtitle">Monitor where your time goes</div>
+        </div>
+        <button class="btn-new" onclick="openModal('time-modal')">+ Log Time</button>
       </div>
-      <table class="data-table" style="margin-top:16px">
-        <thead><tr><th>Task</th><th>Description</th><th>Started</th><th>Duration</th><th></th></tr></thead>
+      <div class="timer-box">
+        <div>
+          <div id="timer-display">00:00:00</div>
+          <div class="timer-label">Elapsed time</div>
+        </div>
+        <button id="timer-btn" onclick="toggleTimer()">▶ Start</button>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Task</th>
+            <th>Description</th>
+            <th>Started</th>
+            <th>Duration</th>
+            <th></th>
+          </tr>
+        </thead>
         <tbody id="time-list"></tbody>
       </table>
     </section>
 
     <!-- LABELS -->
     <section id="section-labels" style="display:none">
-      <div class="section-header"><h2>Labels</h2><button onclick="openModal('label-modal')">+ New Label</button></div>
+      <div class="section-header">
+        <div>
+          <div class="section-title">Labels</div>
+          <div class="section-subtitle">Organize with color tags</div>
+        </div>
+        <button class="btn-new" onclick="openLabelModal()">+ New Label</button>
+      </div>
       <div id="label-list" class="label-list"></div>
     </section>
 
     <!-- NOTIFICATIONS -->
     <section id="section-notifications" style="display:none">
       <div class="section-header">
-        <h2>Notifications</h2>
-        <button onclick="markAllRead()">Mark all read</button>
+        <div>
+          <div class="section-title">Notifications</div>
+        </div>
+        <button class="btn-sm btn-accent" onclick="markAllRead()">✓ Mark all read</button>
       </div>
       <div id="notif-list"></div>
     </section>
 
     <!-- SETTINGS -->
     <section id="section-settings" style="display:none">
-      <div class="section-header"><h2>Settings</h2></div>
+      <div class="section-header">
+        <div class="section-title">Settings</div>
+      </div>
       <form class="settings-form" onsubmit="saveSettings(event)">
         <label>Theme</label>
-        <select id="s-theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select>
+        <select id="s-theme">
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
         <label>Language</label>
         <input type="text" id="s-language" value="en">
         <label>Timezone</label>
         <input type="text" id="s-timezone" value="UTC">
         <label>Week starts on</label>
-        <select id="s-week"><option value="1">Monday</option><option value="0">Sunday</option></select>
+        <select id="s-week">
+          <option value="1">Monday</option>
+          <option value="0">Sunday</option>
+        </select>
         <label>Notifications</label>
-        <select id="s-notif"><option value="1">Enabled</option><option value="0">Disabled</option></select>
-        <button type="submit">Save</button>
+        <select id="s-notif">
+          <option value="1">Enabled</option>
+          <option value="0">Disabled</option>
+        </select>
+        <button type="submit" class="btn-primary">Save Settings</button>
       </form>
     </section>
 
   </main>
 </div>
 
-<!-- MODALS -->
+<!-- ══════════════ MODALS ══════════════ -->
 
+<!-- TASK MODAL -->
 <div id="task-modal" class="modal" style="display:none">
   <div class="modal-box">
-    <h3 id="task-modal-title">New Task</h3>
+    <div class="modal-header">
+      <span class="modal-title" id="task-modal-title">New Task</span>
+      <button class="modal-close" onclick="closeModal('task-modal')">✕</button>
+    </div>
     <form onsubmit="saveTask(event)">
       <input type="hidden" id="task-id">
-      <label>Title*</label><input type="text" id="task-title" required>
-      <label>Description</label><textarea id="task-desc" rows="2"></textarea>
+      <label>Title *</label>
+      <input type="text" id="task-title" placeholder="Task title…" required>
+      <label>Description</label>
+      <textarea id="task-desc" rows="2" placeholder="Optional description…"></textarea>
       <label>Status</label>
       <select id="task-status">
-        <option value="todo">Todo</option><option value="in-progress">In Progress</option>
-        <option value="in-review">In Review</option><option value="done">Done</option><option value="cancelled">Cancelled</option>
+        <option value="todo">Todo</option>
+        <option value="in-progress">In Progress</option>
+        <option value="in-review">In Review</option>
+        <option value="done">Done</option>
+        <option value="cancelled">Cancelled</option>
       </select>
       <label>Priority</label>
       <select id="task-priority">
-        <option value="low">Low</option><option value="medium" selected>Medium</option>
-        <option value="high">High</option><option value="urgent">Urgent</option>
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High</option>
+        <option value="urgent">Urgent</option>
       </select>
-      <label>Due date</label><input type="datetime-local" id="task-due">
-      <div class="modal-actions"><button type="submit">Save</button><button type="button" onclick="closeModal('task-modal')">Cancel</button></div>
+      <label>Due Date</label>
+      <input type="datetime-local" id="task-due">
+      <label>Project</label>
+      <select id="task-project"><option value="">— No project —</option></select>
+      <label>Assign to</label>
+      <select id="task-assignee"><option value="">— Unassigned —</option></select>
+      <div class="modal-actions">
+        <button type="submit" class="btn-primary">Save Task</button>
+        <button type="button" class="btn-ghost" onclick="closeModal('task-modal')">Cancel</button>
+      </div>
     </form>
   </div>
 </div>
 
+<!-- PROJECT MODAL -->
 <div id="project-modal" class="modal" style="display:none">
   <div class="modal-box">
-    <h3>New Project</h3>
+    <div class="modal-header">
+      <span class="modal-title">New Project</span>
+      <button class="modal-close" onclick="closeModal('project-modal')">✕</button>
+    </div>
     <form onsubmit="saveProject(event)">
-      <input type="hidden" id="proj-id">
-      <label>Name*</label><input type="text" id="proj-name" required>
-      <label>Description</label><textarea id="proj-desc" rows="2"></textarea>
-      <label>Color</label><input type="color" id="proj-color" value="#6366f1">
-      <div class="modal-actions"><button type="submit">Save</button><button type="button" onclick="closeModal('project-modal')">Cancel</button></div>
+      <label>Project Name *</label>
+      <input type="text" id="proj-name" placeholder="My awesome project" required>
+      <label>Description</label>
+      <textarea id="proj-desc" rows="2" placeholder="What is this project about?"></textarea>
+      <label>Color</label>
+      <input type="color" id="proj-color" value="#7c6af7">
+      <div class="modal-actions">
+        <button type="submit" class="btn-primary">Create Project</button>
+        <button type="button" class="btn-ghost" onclick="closeModal('project-modal')">Cancel</button>
+      </div>
     </form>
   </div>
 </div>
 
+<!-- PROJECT DETAIL MODAL -->
+<div id="project-detail-modal" class="modal" style="display:none">
+  <div class="modal-box" style="width:620px">
+    <div class="modal-header">
+      <span class="modal-title" id="proj-detail-title">Project</span>
+      <button class="modal-close" onclick="closeModal('project-detail-modal')">✕</button>
+    </div>
+
+    <p class="subsection-title">Team Members</p>
+    <div id="proj-members-list"></div>
+
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <input type="text" id="member-search" class="search-input"
+        placeholder="Search by email or username…"
+        oninput="searchMember()" style="margin-bottom:0;flex:1">
+      <select id="member-role" style="width:120px;margin-bottom:0">
+        <option value="editor">Editor</option>
+        <option value="viewer">Viewer</option>
+      </select>
+    </div>
+    <div id="member-search-results" style="margin-top:8px"></div>
+
+    <hr class="section-divider">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <p class="subsection-title" style="margin-bottom:0">Project Tasks</p>
+      <button class="btn-sm btn-accent" onclick="openAssignTaskModal()">+ Assign Task</button>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Title</th><th>Assignee</th><th>Priority</th><th>Due</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="proj-task-list"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ASSIGN TASK MODAL -->
+<div id="assign-task-modal" class="modal" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">Assign Task</span>
+      <button class="modal-close" onclick="closeModal('assign-task-modal')">✕</button>
+    </div>
+    <form onsubmit="saveAssignedTask(event)">
+      <label>Title *</label>
+      <input type="text" id="at-title" placeholder="Task title…" required>
+      <label>Description</label>
+      <textarea id="at-desc" rows="2"></textarea>
+      <label>Assign to</label>
+      <select id="at-assignee"><option value="">— Unassigned —</option></select>
+      <label>Priority</label>
+      <select id="at-priority">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High</option>
+        <option value="urgent">Urgent</option>
+      </select>
+      <label>Due Date *</label>
+      <input type="datetime-local" id="at-due">
+      <div class="modal-actions">
+        <button type="submit" class="btn-primary">Assign Task</button>
+        <button type="button" class="btn-ghost" onclick="closeModal('assign-task-modal')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- NOTE MODAL -->
 <div id="note-modal" class="modal" style="display:none">
-  <div class="modal-box" style="width:560px">
-    <h3 id="note-modal-title">New Note</h3>
+  <div class="modal-box" style="width:520px">
+    <div class="modal-header">
+      <span class="modal-title">New Note</span>
+      <button class="modal-close" onclick="closeModal('note-modal')">✕</button>
+    </div>
     <form onsubmit="saveNote(event)">
-      <input type="hidden" id="note-id">
-      <label>Title*</label><input type="text" id="note-title" required>
-      <label>Body</label><textarea id="note-body" rows="6"></textarea>
-      <label><input type="checkbox" id="note-pinned"> Pinned</label>
-      <div class="modal-actions"><button type="submit">Save</button><button type="button" onclick="closeModal('note-modal')">Cancel</button></div>
+      <label>Title *</label>
+      <input type="text" id="note-title" placeholder="Note title…" required>
+      <label>Content</label>
+      <textarea id="note-body" rows="6" placeholder="Write anything…"></textarea>
+      <label class="check-label">
+        <input type="checkbox" id="note-pinned"> Pin this note
+      </label>
+      <div class="modal-actions">
+        <button type="submit" class="btn-primary">Save Note</button>
+        <button type="button" class="btn-ghost" onclick="closeModal('note-modal')">Cancel</button>
+      </div>
     </form>
   </div>
 </div>
 
+<!-- EVENT MODAL -->
 <div id="event-modal" class="modal" style="display:none">
   <div class="modal-box">
-    <h3 id="event-modal-title">New Event</h3>
+    <div class="modal-header">
+      <span class="modal-title">New Event</span>
+      <button class="modal-close" onclick="closeModal('event-modal')">✕</button>
+    </div>
     <form onsubmit="saveEvent(event)">
-      <input type="hidden" id="event-id">
-      <label>Title*</label><input type="text" id="event-title" required>
-      <label>Start*</label><input type="datetime-local" id="event-start" required>
-      <label>End*</label><input type="datetime-local" id="event-end" required>
-      <label>Location</label><input type="text" id="event-location">
-      <label>Color</label><input type="color" id="event-color" value="#6366f1">
-      <label><input type="checkbox" id="event-allday"> All day</label>
-      <div class="modal-actions"><button type="submit">Save</button><button type="button" onclick="closeModal('event-modal')">Cancel</button></div>
+      <label>Title *</label>
+      <input type="text" id="event-title" placeholder="Event title…" required>
+      <label>Start *</label>
+      <input type="datetime-local" id="event-start" required>
+      <label>End *</label>
+      <input type="datetime-local" id="event-end" required>
+      <label>Location</label>
+      <input type="text" id="event-location" placeholder="Optional location">
+      <label>Color</label>
+      <input type="color" id="event-color" value="#7c6af7">
+      <label class="check-label">
+        <input type="checkbox" id="event-allday"> All day event
+      </label>
+      <div class="modal-actions">
+        <button type="submit" class="btn-primary">Create Event</button>
+        <button type="button" class="btn-ghost" onclick="closeModal('event-modal')">Cancel</button>
+      </div>
     </form>
   </div>
 </div>
 
+<!-- HABIT MODAL -->
 <div id="habit-modal" class="modal" style="display:none">
   <div class="modal-box">
-    <h3>New Habit</h3>
+    <div class="modal-header">
+      <span class="modal-title">New Habit</span>
+      <button class="modal-close" onclick="closeModal('habit-modal')">✕</button>
+    </div>
     <form onsubmit="saveHabit(event)">
-      <input type="hidden" id="habit-id">
-      <label>Name*</label><input type="text" id="habit-name" required>
+      <label>Habit Name *</label>
+      <input type="text" id="habit-name" placeholder="e.g. Exercise, Read…" required>
       <label>Frequency</label>
-      <select id="habit-freq"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>
-      <label>Color</label><input type="color" id="habit-color" value="#6366f1">
-      <div class="modal-actions"><button type="submit">Save</button><button type="button" onclick="closeModal('habit-modal')">Cancel</button></div>
+      <select id="habit-freq">
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+      </select>
+      <label>Color</label>
+      <input type="color" id="habit-color" value="#34d399">
+      <div class="modal-actions">
+        <button type="submit" class="btn-primary">Create Habit</button>
+        <button type="button" class="btn-ghost" onclick="closeModal('habit-modal')">Cancel</button>
+      </div>
     </form>
   </div>
 </div>
 
+<!-- GOAL MODAL -->
 <div id="goal-modal" class="modal" style="display:none">
   <div class="modal-box">
-    <h3 id="goal-modal-title">New Goal</h3>
+    <div class="modal-header">
+      <span class="modal-title">New Goal</span>
+      <button class="modal-close" onclick="closeModal('goal-modal')">✕</button>
+    </div>
     <form onsubmit="saveGoal(event)">
-      <input type="hidden" id="goal-id">
-      <label>Title*</label><input type="text" id="goal-title" required>
-      <label>Description</label><textarea id="goal-desc" rows="2"></textarea>
-      <label>Target date</label><input type="date" id="goal-date">
-      <label>Progress (0–100)</label><input type="number" id="goal-progress" min="0" max="100" value="0">
-      <div class="modal-actions"><button type="submit">Save</button><button type="button" onclick="closeModal('goal-modal')">Cancel</button></div>
+      <label>Goal Title *</label>
+      <input type="text" id="goal-title" placeholder="What do you want to achieve?" required>
+      <label>Description</label>
+      <textarea id="goal-desc" rows="2" placeholder="More details…"></textarea>
+      <label>Target Date</label>
+      <input type="date" id="goal-date">
+      <label>Initial Progress (0–100%)</label>
+      <input type="number" id="goal-progress" min="0" max="100" value="0">
+      <div class="modal-actions">
+        <button type="submit" class="btn-primary">Create Goal</button>
+        <button type="button" class="btn-ghost" onclick="closeModal('goal-modal')">Cancel</button>
+      </div>
     </form>
   </div>
 </div>
 
+<!-- LABEL MODAL -->
 <div id="label-modal" class="modal" style="display:none">
   <div class="modal-box">
-    <h3>New Label</h3>
+    <div class="modal-header">
+      <span class="modal-title">New Label</span>
+      <button class="modal-close" onclick="closeModal('label-modal')">✕</button>
+    </div>
     <form onsubmit="saveLabel(event)">
-      <label>Name*</label><input type="text" id="label-name" required>
-      <label>Color</label><input type="color" id="label-color" value="#6366f1">
-      <div class="modal-actions"><button type="submit">Save</button><button type="button" onclick="closeModal('label-modal')">Cancel</button></div>
+      <label>Label Name *</label>
+      <input type="text" id="label-name" placeholder="e.g. Bug, Feature…" required>
+      <label>Color</label>
+      <input type="color" id="label-color" value="#7c6af7">
+      <div class="modal-actions">
+        <button type="submit" class="btn-primary">Create Label</button>
+        <button type="button" class="btn-ghost" onclick="closeModal('label-modal')">Cancel</button>
+      </div>
     </form>
   </div>
 </div>
 
+<!-- TIME ENTRY MODAL -->
 <div id="time-modal" class="modal" style="display:none">
   <div class="modal-box">
-    <h3>Log Time</h3>
+    <div class="modal-header">
+      <span class="modal-title">Log Time</span>
+      <button class="modal-close" onclick="closeModal('time-modal')">✕</button>
+    </div>
     <form onsubmit="saveTimeEntry(event)">
-      <label>Description</label><input type="text" id="te-desc">
-      <label>Start*</label><input type="datetime-local" id="te-start" required>
-      <label>End</label><input type="datetime-local" id="te-end">
-      <div class="modal-actions"><button type="submit">Save</button><button type="button" onclick="closeModal('time-modal')">Cancel</button></div>
+      <label>Description</label>
+      <input type="text" id="te-desc" placeholder="What did you work on?">
+      <label>Start *</label>
+      <input type="datetime-local" id="te-start" required>
+      <label>End</label>
+      <input type="datetime-local" id="te-end">
+      <div class="modal-actions">
+        <button type="submit" class="btn-primary">Save Entry</button>
+        <button type="button" class="btn-ghost" onclick="closeModal('time-modal')">Cancel</button>
+      </div>
     </form>
   </div>
 </div>

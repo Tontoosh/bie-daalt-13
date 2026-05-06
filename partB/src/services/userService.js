@@ -25,6 +25,16 @@ async function getUserByEmail(email) {
   return row ?? null;
 }
 
+async function searchUsers(query) {
+  const pool = getPool();
+  const like = `%${query}%`;
+  const [rows] = await pool.execute(
+    'SELECT id, username, email FROM users WHERE email LIKE ? OR username LIKE ? LIMIT 10',
+    [like, like]
+  );
+  return rows;
+}
+
 async function createUser({ email, username, password }) {
   const pool = getPool();
   const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
@@ -78,4 +88,4 @@ async function deleteUser(id) {
   }
 }
 
-module.exports = { getUserById, getUserByEmail, createUser, verifyPassword, updateUser, deleteUser };
+module.exports = { getUserById, getUserByEmail, searchUsers, createUser, verifyPassword, updateUser, deleteUser };

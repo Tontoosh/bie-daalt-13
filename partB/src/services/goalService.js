@@ -17,11 +17,11 @@ async function getGoalById(id) {
   return row;
 }
 
-async function createGoal({ userId, title, description, targetDate } = {}) {
+async function createGoal({ userId, title, description, targetDate, progress } = {}) {
   const pool = getPool();
   const [result] = await pool.execute(
-    'INSERT INTO goals (user_id, title, description, target_date) VALUES (?, ?, ?, ?)',
-    [userId, title, description ?? null, targetDate ?? null]
+    'INSERT INTO goals (user_id, title, description, target_date, progress) VALUES (?, ?, ?, ?, ?)',
+    [userId, title, description ?? null, targetDate ?? null, Math.min(100, Math.max(0, Number(progress) || 0))]
   );
   return getGoalById(result.insertId);
 }

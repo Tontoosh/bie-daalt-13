@@ -187,6 +187,7 @@ async function loadTasks() {
     ? tasks.map(t => `
       <tr>
         <td>${esc(t.title)}</td>
+        <td>${t.assignee_name ? `<span class="member-chip">${esc(t.assignee_name)}</span>` : ''}</td>
         <td><span class="badge status-${esc(t.status)}">${esc(t.status)}</span></td>
         <td><span class="badge priority-${esc(t.priority)}">${esc(t.priority)}</span></td>
         <td>${dateValue(t.due_date)}</td>
@@ -195,10 +196,10 @@ async function loadTasks() {
           <button class="btn-sm btn-del" onclick="deleteTask(${t.id})">Delete</button>
         </td>
       </tr>`).join('')
-    : '<tr><td colspan="5" class="table-empty">No tasks yet</td></tr>';
+    : '<tr><td colspan="6" class="table-empty">No tasks yet</td></tr>';
 }
 
-function openTaskModal(task) {
+async function openTaskModal(task) {
   document.getElementById('task-id').value = task?.id || '';
   document.getElementById('task-title').value = task?.title || '';
   document.getElementById('task-desc').value = task?.description || '';
@@ -206,7 +207,30 @@ function openTaskModal(task) {
   document.getElementById('task-priority').value = task?.priority || 'medium';
   document.getElementById('task-due').value = task?.due_date ? new Date(task.due_date).toISOString().slice(0, 16) : '';
   document.getElementById('task-modal-title').textContent = task ? 'Edit Task' : 'New Task';
+
+  const projects = await apiFetch(`/api/projects?user_id=${userId()}`).catch(() => []);
+  const projSel = document.getElementById('task-project');
+  projSel.innerHTML = '<option value="">— No project —</option>' +
+    projects.map(p => `<option value="${p.id}" ${task?.project_id === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+
+  projSel.onchange = () => populateAssigneeDropdown(Number(projSel.value), task?.assignee_id);
+  await populateAssigneeDropdown(task?.project_id || Number(projSel.value), task?.assignee_id);
+
   document.getElementById('task-modal').style.display = 'flex';
+}
+
+async function populateAssigneeDropdown(projectId, selectedId) {
+  const sel = document.getElementById('task-assignee');
+  sel.innerHTML = '<option value="">— Unassigned —</option>';
+  if (!projectId) return;
+  const members = await apiFetch(`/api/projects/${projectId}/members`).catch(() => []);
+  members.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    opt.textContent = `${m.username} (${m.role})`;
+    if (m.id === selectedId) opt.selected = true;
+    sel.appendChild(opt);
+  });
 }
 
 async function editTask(id) {
@@ -217,12 +241,17 @@ async function editTask(id) {
 async function saveTask(e) {
   e.preventDefault();
   const id = document.getElementById('task-id').value;
+  const projId = Number(document.getElementById('task-project').value) || null;
+  const assigneeId = Number(document.getElementById('task-assignee').value) || null;
   const body = {
     title: document.getElementById('task-title').value,
     description: document.getElementById('task-desc').value || null,
     status: document.getElementById('task-status').value,
     priority: document.getElementById('task-priority').value,
     due_date: toMysqlDateTime(document.getElementById('task-due').value),
+    project_id: projId,
+    assignee_id: assigneeId,
+    created_by: userId(),
   };
 
   try {
@@ -291,8 +320,141 @@ async function loadProjects() {
   const projects = await apiFetch(`/api/projects?user_id=${userId()}`).catch(() => []);
   const el = document.getElementById('project-list');
   el.innerHTML = projects.length
-    ? projects.map(p => cardHtml(p.name, p.description, p.color, `deleteProject(${p.id})`)).join('')
+    ? projects.map(p => `
+      <article class="item-card">
+        <span class="label-dot" style="background:${esc(p.color || '#6366f1')}"></span>
+        <h3>${esc(p.name)}</h3>
+        <p>${esc(p.description || '')}</p>
+        <div class="card-actions">
+          <button class="btn-sm" onclick="openProjectDetail(${p.id},'${esc(p.name)}')">Manage</button>
+          <button class="btn-sm btn-del" onclick="deleteProject(${p.id})">Delete</button>
+        </div>
+      </article>`).join('')
     : emptyHtml('No projects yet');
+}
+
+let _currentProjectId = null;
+
+async function openProjectDetail(projectId, projectName) {
+  _currentProjectId = projectId;
+  document.getElementById('proj-detail-title').textContent = projectName;
+  document.getElementById('project-detail-modal').style.display = 'flex';
+  await Promise.all([loadProjectMembers(projectId), loadProjectTasks(projectId)]);
+}
+
+async function loadProjectMembers(projectId) {
+  const members = await apiFetch(`/api/projects/${projectId}/members`).catch(() => []);
+  const el = document.getElementById('proj-members-list');
+  el.innerHTML = members.length
+    ? members.map(m => `
+      <div class="member-row">
+        <div class="member-info">
+          <div class="member-avatar">${m.username.charAt(0).toUpperCase()}</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(m.username)}</div>
+            <div style="font-size:11px;color:var(--text-3)">${esc(m.email)}</div>
+          </div>
+          <span class="role-badge role-${m.role}">${esc(m.role)}</span>
+        </div>
+        <button class="btn-sm btn-del" onclick="removeMember(${projectId},${m.id})">Remove</button>
+      </div>`).join('')
+    : '<p style="color:var(--text-3);font-size:13px;padding:8px 0">No members yet.</p>';
+}
+
+async function loadProjectTasks(projectId) {
+  const tasks = await apiFetch(`/api/projects/${projectId}/tasks`).catch(() => []);
+  const tbody = document.getElementById('proj-task-list');
+  tbody.innerHTML = tasks.length
+    ? tasks.map(t => `
+      <tr>
+        <td>${esc(t.title)}</td>
+        <td>${t.assignee_name ? `<span class="member-chip">${esc(t.assignee_name)}</span>` : '<span style="color:#aaa">—</span>'}</td>
+        <td><span class="badge priority-${esc(t.priority)}">${esc(t.priority)}</span></td>
+        <td>${dateValue(t.due_date)}</td>
+        <td><span class="badge status-${esc(t.status)}">${esc(t.status)}</span></td>
+      </tr>`).join('')
+    : '<tr><td colspan="5" class="table-empty">No tasks assigned yet</td></tr>';
+}
+
+let _memberSearchTimeout = null;
+
+function searchMember() {
+  clearTimeout(_memberSearchTimeout);
+  _memberSearchTimeout = setTimeout(async () => {
+    const q = document.getElementById('member-search').value.trim();
+    const el = document.getElementById('member-search-results');
+    if (q.length < 2) { el.innerHTML = ''; return; }
+    const users = await apiFetch(`/api/users/search?q=${encodeURIComponent(q)}`).catch(() => []);
+    el.innerHTML = users.length
+      ? users.map(u => `
+        <div class="search-result-item">
+          <div class="member-info">
+            <div class="member-avatar" style="width:26px;height:26px;font-size:11px;border-radius:6px">${u.username.charAt(0).toUpperCase()}</div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(u.username)}</div>
+              <div style="font-size:11px;color:var(--text-3)">${esc(u.email)}</div>
+            </div>
+          </div>
+          <button class="btn-sm btn-accent" onclick="addMemberToProject(${u.id},'${esc(u.username)}')">+ Add</button>
+        </div>`).join('')
+      : '<p style="color:var(--text-3);font-size:13px;padding:8px 0">No users found</p>';
+  }, 300);
+}
+
+async function addMemberToProject(memberId, memberName) {
+  if (!_currentProjectId) return;
+  const role = document.getElementById('member-role').value;
+  try {
+    await apiFetch(`/api/projects/${_currentProjectId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userId: memberId, role }),
+    });
+    document.getElementById('member-search').value = '';
+    document.getElementById('member-search-results').innerHTML = '';
+    await loadProjectMembers(_currentProjectId);
+    await loadProjectTasks(_currentProjectId);
+  } catch (err) {
+    showError(err);
+  }
+}
+
+async function removeMember(projectId, memberId) {
+  if (!confirmDelete(`Remove this member from the project?`)) return;
+  await apiFetch(`/api/projects/${projectId}/members/${memberId}`, { method: 'DELETE' }).catch(showError);
+  await loadProjectMembers(projectId);
+}
+
+async function openAssignTaskModal() {
+  if (!_currentProjectId) return;
+  const members = await apiFetch(`/api/projects/${_currentProjectId}/members`).catch(() => []);
+  const sel = document.getElementById('at-assignee');
+  sel.innerHTML = '<option value="">— Unassigned —</option>' +
+    members.map(m => `<option value="${m.id}">${esc(m.username)}</option>`).join('');
+  document.getElementById('assign-task-modal').style.display = 'flex';
+}
+
+async function saveAssignedTask(e) {
+  e.preventDefault();
+  if (!_currentProjectId) return;
+  try {
+    await apiFetch('/api/tasks', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: document.getElementById('at-title').value,
+        description: document.getElementById('at-desc').value || null,
+        priority: document.getElementById('at-priority').value,
+        due_date: toMysqlDateTime(document.getElementById('at-due').value),
+        project_id: _currentProjectId,
+        assignee_id: Number(document.getElementById('at-assignee').value) || null,
+        created_by: userId(),
+      }),
+    });
+    e.target.reset();
+    closeModal('assign-task-modal');
+    await loadProjectTasks(_currentProjectId);
+  } catch (err) {
+    showError(err);
+  }
 }
 
 async function saveProject(e) {
@@ -437,9 +599,27 @@ async function deleteEvent(id) {
 async function loadHabits() {
   const habits = await apiFetch(`/api/habits?user_id=${userId()}`).catch(() => []);
   const el = document.getElementById('habit-list');
-  el.innerHTML = habits.length
-    ? habits.map(h => cardHtml(h.name, `${h.frequency} - target ${h.target_count}`, h.color, `deleteHabit(${h.id})`, `logHabit(${h.id})`)).join('')
-    : emptyHtml('No habits yet');
+  if (!habits.length) {
+    el.innerHTML = `<div class="empty-state"><span class="empty-state-icon">◉</span>No habits yet</div>`;
+    return;
+  }
+  const items = await Promise.all(habits.map(async h => {
+    const streak = await apiFetch(`/api/habits/${h.id}/streak`).catch(() => ({ streak: 0 }));
+    return `
+      <article class="item-card">
+        <div class="item-card-accent" style="background:${esc(h.color)}"></div>
+        <h3>${esc(h.name)}</h3>
+        <p style="color:var(--text-3);font-size:12px">${esc(h.frequency)} · target ${h.target_count}×</p>
+        <div style="margin-top:10px">
+          <span class="streak-badge">🔥 ${streak.streak} day streak</span>
+        </div>
+        <div class="card-actions" style="margin-top:12px">
+          <button class="btn-sm btn-accent" onclick="logHabit(${h.id})">✓ Log</button>
+          <button class="btn-sm btn-del" onclick="deleteHabit(${h.id})">Delete</button>
+        </div>
+      </article>`;
+  }));
+  el.innerHTML = items.join('');
 }
 
 async function saveHabit(e) {
@@ -480,8 +660,23 @@ async function loadGoals() {
   const goals = await apiFetch(`/api/goals?user_id=${userId()}`).catch(() => []);
   const el = document.getElementById('goal-list');
   el.innerHTML = goals.length
-    ? goals.map(g => cardHtml(g.title, `${g.progress}% - ${g.status}`, '#10b981', `deleteGoal(${g.id})`)).join('')
-    : emptyHtml('No goals yet');
+    ? goals.map(g => `
+      <article class="item-card">
+        <div class="item-card-accent" style="background:${g.status === 'completed' ? 'var(--green)' : g.status === 'abandoned' ? 'var(--red)' : 'var(--accent)'}"></div>
+        <h3>${esc(g.title)}</h3>
+        <p>${esc(g.description || '')}</p>
+        <div class="progress-bar" style="margin-top:10px">
+          <div class="progress-fill" style="width:${g.progress}%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-3);margin-top:4px">
+          <span>${g.progress}% complete</span>
+          <span>${g.target_date ? dateValue(g.target_date) : 'No deadline'}</span>
+        </div>
+        <div class="card-actions">
+          <button class="btn-sm btn-del" onclick="deleteGoal(${g.id})">Delete</button>
+        </div>
+      </article>`).join('')
+    : `<div class="empty-state"><span class="empty-state-icon">◎</span>No goals yet</div>`;
 }
 
 async function saveGoal(e) {
@@ -494,6 +689,7 @@ async function saveGoal(e) {
         title: document.getElementById('goal-title').value,
         description: document.getElementById('goal-desc').value || null,
         targetDate: document.getElementById('goal-date').value || null,
+        progress: Number(document.getElementById('goal-progress').value) || 0,
       }),
     });
     e.target.reset();
@@ -558,12 +754,14 @@ async function toggleTimer() {
     if (!entry) return;
     state.activeTimerId = entry.id;
     state.timerStartedAt = new Date(entry.started_at || Date.now());
-    btn.textContent = 'Stop';
+    btn.textContent = '■ Stop';
+    btn.classList.add('running');
   } else {
     await apiFetch(`/api/time/${state.activeTimerId}/stop`, { method: 'PATCH' }).catch(showError);
     state.activeTimerId = null;
     state.timerStartedAt = null;
-    btn.textContent = 'Start';
+    btn.textContent = '▶ Start';
+    btn.classList.remove('running');
     document.getElementById('timer-display').textContent = '00:00:00';
     loadTimeEntries();
   }
@@ -582,8 +780,17 @@ async function loadNotifications() {
   const el = document.getElementById('notif-list');
   if (badge) badge.textContent = count.count ? String(count.count) : '';
   el.innerHTML = list.length
-    ? list.map(n => rowCard(n.title, n.body || n.type, `markRead(${n.id})`)).join('')
-    : emptyHtml('No notifications');
+    ? list.map(n => `
+      <div class="notif-item ${n.is_read ? '' : 'unread'}">
+        ${!n.is_read ? '<div class="notif-dot"></div>' : '<div style="width:8px"></div>'}
+        <div class="notif-content">
+          <div class="notif-title">${esc(n.title)}</div>
+          ${n.body ? `<div class="notif-body">${esc(n.body)}</div>` : ''}
+          <div class="notif-time">${dateTimeValue(n.created_at)}</div>
+        </div>
+        ${!n.is_read ? `<button class="btn-sm" onclick="markRead(${n.id})">✓ Read</button>` : ''}
+      </div>`).join('')
+    : `<div class="empty-state"><span class="empty-state-icon">◯</span>No notifications</div>`;
 }
 
 async function markRead(id) {
@@ -681,7 +888,10 @@ document.querySelectorAll?.('.modal')?.forEach(modal => {
   }
   if (!isDash) return;
 
-  document.getElementById('sidebar-user').textContent = user.username || user.email;
+  const name = user.username || user.email;
+  document.getElementById('sidebar-user').textContent = name;
+  const avatarEl = document.getElementById('user-avatar-char');
+  if (avatarEl) avatarEl.textContent = name.charAt(0).toUpperCase();
   loadTasks();
   loadNotifications();
 })();

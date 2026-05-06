@@ -74,4 +74,17 @@ async function removeMember(projectId, userId) {
   await pool.execute('DELETE FROM project_members WHERE project_id = ? AND user_id = ?', [projectId, userId]);
 }
 
-module.exports = { getProjects, getProjectById, createProject, updateProject, deleteProject, getMembers, addMember, removeMember };
+async function getProjectTasks(projectId) {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `SELECT t.*, u.username as assignee_name
+     FROM tasks t
+     LEFT JOIN users u ON u.id = t.assignee_id
+     WHERE t.project_id = ?
+     ORDER BY t.priority DESC, t.due_date ASC`,
+    [projectId]
+  );
+  return rows;
+}
+
+module.exports = { getProjects, getProjectById, createProject, updateProject, deleteProject, getMembers, addMember, removeMember, getProjectTasks };
