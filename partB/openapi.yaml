@@ -1,0 +1,440 @@
+openapi: 3.0.3
+info:
+  title: Personal Task Tracker API
+  description: Task CRUD, label, search, filter, user auth
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: Local development
+
+tags:
+  - name: Tasks
+  - name: Labels
+  - name: Users
+
+paths:
+  /api/tasks:
+    get:
+      tags: [Tasks]
+      summary: Task-уудын жагсаалт
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [todo, in-progress, in-review, done, cancelled]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [low, medium, high, urgent]
+        - name: search
+          in: query
+          description: Гарчгаар хайх
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task-уудын жагсаалт
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+
+    post:
+      tags: [Tasks]
+      summary: Шинэ task үүсгэх
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: Үүсгэгдсэн task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/tasks/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+
+    get:
+      tags: [Tasks]
+      summary: Нэг task харах
+      responses:
+        '200':
+          description: Task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Tasks]
+      summary: Task засах
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        '200':
+          description: Шинэчлэгдсэн task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Tasks]
+      summary: Task устгах
+      responses:
+        '204':
+          description: Устгасан
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tasks/{id}/labels:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+
+    get:
+      tags: [Tasks]
+      summary: Task-ийн label-уудыг харах
+      responses:
+        '200':
+          description: Label-уудын жагсаалт
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Label'
+
+    post:
+      tags: [Tasks]
+      summary: Task-д label оноох
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label_id]
+              properties:
+                label_id:
+                  type: integer
+      responses:
+        '204':
+          description: Label оноосон
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/tasks/{id}/labels/{labelId}:
+    delete:
+      tags: [Tasks]
+      summary: Task-аас label авах
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: labelId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Label авсан
+
+  /api/labels:
+    get:
+      tags: [Labels]
+      summary: Бүх label
+      responses:
+        '200':
+          description: Label жагсаалт
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Label'
+
+    post:
+      tags: [Labels]
+      summary: Шинэ label үүсгэх
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+                color:
+                  type: string
+                  pattern: '^#[0-9a-fA-F]{6}$'
+                  default: '#6366f1'
+      responses:
+        '201':
+          description: Үүсгэгдсэн label
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Label'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/labels/{id}:
+    delete:
+      tags: [Labels]
+      summary: Label устгах (task_labels cascade)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Устгасан
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/users/register:
+    post:
+      tags: [Users]
+      summary: Шинэ хэрэглэгч бүртгэх
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, username, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                username:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '201':
+          description: Бүртгэгдсэн хэрэглэгч (password_hash байхгүй)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email аль хэдийн бүртгэлтэй
+
+  /api/users/login:
+    post:
+      tags: [Users]
+      summary: Нэвтрэх
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Нэвтэрсэн хэрэглэгч
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Нууц үг буруу
+
+  /api/users/{id}:
+    get:
+      tags: [Users]
+      summary: Хэрэглэгч харах
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Хэрэглэгч
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  schemas:
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [todo, in-progress, in-review, done, cancelled]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        project_id:
+          type: integer
+          nullable: true
+        assignee_id:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TaskCreate:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          maxLength: 500
+        description:
+          type: string
+        status:
+          type: string
+          enum: [todo, in-progress, in-review, done, cancelled]
+          default: todo
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+          default: medium
+        due_date:
+          type: string
+          format: date-time
+
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 500
+        description:
+          type: string
+        status:
+          type: string
+          enum: [todo, in-progress, in-review, done, cancelled]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        due_date:
+          type: string
+          format: date-time
+
+    Label:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        color:
+          type: string
+          pattern: '^#[0-9a-fA-F]{6}$'
+        created_at:
+          type: string
+          format: date-time
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        avatar_url:
+          type: string
+          nullable: true
+        is_active:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Буруу оролт
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Олдсонгүй
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
