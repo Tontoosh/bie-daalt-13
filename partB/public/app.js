@@ -131,30 +131,95 @@ function logout() {
   location.href = 'index.html';
 }
 
-function showSection(name) {
-  const sections = ['tasks', 'projects', 'notes', 'calendar', 'habits', 'goals', 'time', 'labels', 'notifications', 'settings'];
-  sections.forEach(section => {
-    const el = document.getElementById(`section-${section}`);
-    if (el) el.style.display = section === name ? '' : 'none';
-  });
+let _taskFilter = 'all';
 
+function showSection(name, taskFilter) {
+  if (name === 'tasks' && taskFilter) _taskFilter = taskFilter;
+  const sections = ['tasks','projects','notes','calendar','habits','goals','time','labels','notifications','settings','profile'];
+  sections.forEach(s => {
+    const el = document.getElementById(`section-${s}`);
+    if (el) el.style.display = s === name ? '' : 'none';
+  });
   document.querySelectorAll('.nav-link').forEach(el => {
-    el.classList.toggle('active', el.getAttribute('onclick')?.includes(`'${name}'`) ?? false);
+    const oc = el.getAttribute('onclick') || '';
+    const match = name === 'tasks'
+      ? oc.includes(`'tasks','${taskFilter || 'all'}'`) || (taskFilter === 'all' && oc === "showSection('tasks','all')")
+      : oc.includes(`'${name}'`);
+    el.classList.toggle('active', match);
   });
-
+  if (name === 'tasks') {
+    const titles = { all: 'All Tasks', today: 'Today', upcoming: 'Upcoming' };
+    const t = document.getElementById('task-view-title');
+    if (t) t.textContent = titles[_taskFilter] || 'Tasks';
+  }
   const loaders = {
-    tasks: loadTasks,
-    projects: loadProjects,
-    notes: loadNotes,
-    calendar: loadCalendar,
-    habits: loadHabits,
-    goals: loadGoals,
-    time: loadTimeEntries,
-    labels: loadLabels,
-    notifications: loadNotifications,
-    settings: loadSettings,
+    tasks: loadTasks, projects: loadProjects, notes: loadNotes,
+    calendar: loadCalendar, habits: loadHabits, goals: loadGoals,
+    time: loadTimeEntries, labels: loadLabels,
+    notifications: loadNotifications, settings: loadSettings,
+    profile: loadProfile,
   };
   loaders[name]?.();
+}
+
+async function loadProfile() {
+  const user = getUser();
+  if (!user) return;
+  const fresh = await apiFetch(`/api/users/${user.id}`).catch(() => user);
+  const el = document.getElementById('profile-content');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="profile-card">
+      <div class="profile-avatar">${esc((fresh.username||'?').charAt(0).toUpperCase())}</div>
+      <div class="profile-info">
+        <div class="profile-name">${esc(fresh.username)}</div>
+        <div class="profile-email">${esc(fresh.email)}</div>
+      </div>
+    </div>
+    <div class="profile-fields">
+      <div class="profile-field">
+        <span class="profile-field-label">User ID</span>
+        <span class="profile-field-value profile-id">#${fresh.id}</span>
+      </div>
+      <div class="profile-field">
+        <span class="profile-field-label">Username</span>
+        <span class="profile-field-value">${esc(fresh.username)}</span>
+      </div>
+      <div class="profile-field">
+        <span class="profile-field-label">Email</span>
+        <span class="profile-field-value">${esc(fresh.email)}</span>
+      </div>
+      <div class="profile-field">
+        <span class="profile-field-label">Member since</span>
+        <span class="profile-field-value">${dateValue(fresh.created_at)}</span>
+      </div>
+    </div>
+    <form onsubmit="updateProfile(event)" style="margin-top:20px">
+      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);margin-bottom:5px">New Username</label>
+      <input type="text" id="profile-username" value="${esc(fresh.username)}" style="max-width:320px">
+      <label style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);margin-bottom:5px">New Email</label>
+      <input type="email" id="profile-email" value="${esc(fresh.email)}" style="max-width:320px">
+      <button type="submit" class="btn-new" style="margin-top:4px">Save Profile</button>
+    </form>`;
+}
+
+async function updateProfile(e) {
+  e.preventDefault();
+  const user = getUser();
+  try {
+    const updated = await apiFetch(`/api/users/${user.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        username: document.getElementById('profile-username').value,
+        email:    document.getElementById('profile-email').value,
+      }),
+    });
+    setUser({ ...user, ...updated });
+    document.getElementById('sidebar-user').textContent = updated.username;
+    const av = document.getElementById('user-avatar-char');
+    if (av) av.textContent = updated.username.charAt(0).toUpperCase();
+    loadProfile();
+  } catch (err) { showError(err); }
 }
 
 function openModal(id) {
@@ -169,35 +234,349 @@ function closeModal(id) {
   document.getElementById(id).style.display = 'none';
 }
 
+const PRIORITY_COLORS = { urgent: 'var(--red)', high: 'var(--orange)', medium: 'var(--yellow)', low: 'var(--green)' };
+
+function getDueChip(due) {
+  if (!due) return '';
+  const d = new Date(due);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diff = Math.floor((d - today) / 86400000);
+  let cls = '', label = '';
+  if (diff < 0)  { cls = 'overdue'; label = d.toLocaleDateString(); }
+  else if (diff === 0) { cls = 'today'; label = 'Today'; }
+  else if (diff === 1) { label = 'Tomorrow'; }
+  else { label = d.toLocaleDateString(); }
+  return `<span class="task-due-chip ${cls}">📅 ${label}</span>`;
+}
+
 async function loadTasks() {
   const params = new URLSearchParams();
-  const status = document.getElementById('filter-status')?.value;
+  const status   = document.getElementById('filter-status')?.value;
   const priority = document.getElementById('filter-priority')?.value;
-  const search = document.getElementById('filter-search')?.value;
-
-  if (status) params.set('status', status);
+  const search   = document.getElementById('filter-search')?.value;
+  if (status)   params.set('status', status);
   if (priority) params.set('priority', priority);
-  if (search) params.set('search', search);
+  if (search)   params.set('search', search);
 
-  const tasks = await apiFetch('/api/tasks?' + params.toString()).catch(() => []);
-  const tbody = document.getElementById('task-list');
-  if (!tbody) return;
+  let tasks = await apiFetch('/api/tasks?' + params.toString()).catch(() => []);
 
-  tbody.innerHTML = tasks.length
-    ? tasks.map(t => `
-      <tr>
-        <td>${esc(t.title)}</td>
-        <td>${t.assignee_name ? `<span class="member-chip">${esc(t.assignee_name)}</span>` : ''}</td>
-        <td><span class="badge status-${esc(t.status)}">${esc(t.status)}</span></td>
-        <td><span class="badge priority-${esc(t.priority)}">${esc(t.priority)}</span></td>
-        <td>${dateValue(t.due_date)}</td>
-        <td>
-          <button class="btn-sm" onclick="editTask(${t.id})">Edit</button>
-          <button class="btn-sm btn-del" onclick="deleteTask(${t.id})">Delete</button>
-        </td>
-      </tr>`).join('')
-    : '<tr><td colspan="6" class="table-empty">No tasks yet</td></tr>';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate()+1);
+
+  if (_taskFilter === 'today') {
+    tasks = tasks.filter(t => {
+      if (!t.due_date) return false;
+      const d = new Date(t.due_date); d.setHours(0,0,0,0);
+      return d <= today;
+    });
+  } else if (_taskFilter === 'upcoming') {
+    tasks = tasks.filter(t => {
+      if (!t.due_date) return true;
+      const d = new Date(t.due_date); d.setHours(0,0,0,0);
+      return d >= today;
+    });
+  }
+
+  // Update today count badge
+  const allTasks = await apiFetch('/api/tasks').catch(() => []);
+  const todayCount = allTasks.filter(t => {
+    if (!t.due_date || t.status === 'done' || t.status === 'cancelled') return false;
+    const d = new Date(t.due_date); d.setHours(0,0,0,0);
+    return d <= today;
+  }).length;
+  const badge = document.getElementById('today-count');
+  if (badge) badge.textContent = todayCount || '';
+
+  const el = document.getElementById('task-list');
+  if (!el) return;
+
+  if (!tasks.length) {
+    el.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 0;gap:10px;color:var(--text-3)">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/><path d="M14 20l4 4 8-8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span style="font-size:14px;font-weight:500">${_taskFilter === 'today' ? 'No tasks due today' : 'No tasks yet'}</span>
+      <span style="font-size:12px">${_taskFilter === 'today' ? 'Enjoy your day!' : 'Click "+ Add task" to get started'}</span>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = tasks.map(t => {
+    const isDone = t.status === 'done' || t.status === 'cancelled';
+    const pipColor = PRIORITY_COLORS[t.priority] || 'var(--border-2)';
+    return `
+      <div class="task-row p-${t.priority}" onclick="openDetailPanel(${t.id})">
+        <div class="task-check ${isDone ? 'done' : ''}"
+          onclick="event.stopPropagation();toggleTaskDone(${t.id},'${t.status}')"></div>
+        <div class="task-body">
+          <div class="task-title-row">
+            <div class="task-priority-pip" style="background:${pipColor}" title="${t.priority}"></div>
+            <span class="task-name ${isDone ? 'done-text' : ''}">${esc(t.title)}</span>
+          </div>
+          ${t.description ? `<div class="task-desc">${esc(t.description)}</div>` : ''}
+          <div class="task-meta-row">
+            ${getDueChip(t.due_date)}
+            ${t.assignee_name ? `<span class="task-assignee-chip">
+              <span class="task-mini-avatar">${t.assignee_name.charAt(0).toUpperCase()}</span>
+              ${esc(t.assignee_name)}
+            </span>` : ''}
+            ${t.status !== 'todo' && !isDone ? `<span class="badge status-${t.status}">${t.status}</span>` : ''}
+          </div>
+        </div>
+        <div class="task-actions">
+          <button class="btn-sm btn-del" onclick="event.stopPropagation();deleteTask(${t.id})">✕</button>
+        </div>
+      </div>`;
+  }).join('');
 }
+
+async function toggleTaskDone(id, currentStatus) {
+  const newStatus = currentStatus === 'done' ? 'todo' : 'done';
+  await apiFetch(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) }).catch(showError);
+  loadTasks();
+}
+
+// ─── DETAIL PANEL ──────────────────────────────────────────────────────────
+let _detailTaskId = null;
+
+async function openDetailPanel(taskId) {
+  _detailTaskId = taskId;
+  document.getElementById('task-detail-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+
+  const [task, labels, comments, projects] = await Promise.all([
+    apiFetch(`/api/tasks/${taskId}`),
+    apiFetch(`/api/tasks/${taskId}/labels`).catch(() => []),
+    apiFetch(`/api/tasks/${taskId}/comments`).catch(() => []),
+    apiFetch(`/api/projects?user_id=${userId()}`).catch(() => []),
+  ]);
+
+  const proj = projects.find(p => p.id === task.project_id);
+
+  // Breadcrumb
+  document.getElementById('detail-breadcrumb').innerHTML =
+    `<span>My Tasks</span>${proj ? ` › <span>${esc(proj.name)}</span>` : ''}`;
+
+  // Title
+  document.getElementById('detail-title').value = task.title;
+
+  // Complete button state
+  updateCompleteBtn(task.status);
+
+  // Priority chip
+  document.getElementById('detail-priority').value = task.priority;
+  updatePriorityChip();
+
+  // Due chip
+  const dueInput = document.getElementById('detail-due');
+  dueInput.value = task.due_date ? new Date(task.due_date).toISOString().slice(0, 16) : '';
+  updateDueChip(task.due_date);
+
+  // Project chip
+  document.getElementById('dm-chip-project').textContent = proj ? proj.name : 'No project';
+
+  // Status
+  document.getElementById('detail-status').value = task.status;
+
+  // Assignee
+  const assignSel = document.getElementById('detail-assignee');
+  assignSel.innerHTML = '<option value="">Unassigned</option>';
+  if (task.project_id) {
+    const members = await apiFetch(`/api/projects/${task.project_id}/members`).catch(() => []);
+    members.forEach(m => {
+      const o = document.createElement('option');
+      o.value = m.id; o.textContent = m.username;
+      if (m.id === task.assignee_id) o.selected = true;
+      assignSel.appendChild(o);
+    });
+  }
+
+  // Created
+  document.getElementById('detail-created').textContent = dateTimeValue(task.created_at);
+
+  // Notes
+  document.getElementById('detail-desc').value = task.description || '';
+
+  // Labels
+  const labelsEl = document.getElementById('detail-labels');
+  labelsEl.innerHTML = labels.length
+    ? labels.map(l =>
+        `<span class="badge" style="background:${l.color}22;color:${l.color};border:1px solid ${l.color}44">${esc(l.name)}</span>`
+      ).join('')
+    : '<span style="font-size:12px;color:var(--text-3)">No labels assigned</span>';
+
+  // Subtasks
+  await loadSubtasks(taskId);
+
+  // Comments
+  renderComments(comments);
+
+  // Avatar
+  const user = getUser();
+  const av = document.getElementById('detail-comment-avatar');
+  if (av && user) av.textContent = (user.username || user.email).charAt(0).toUpperCase();
+
+  // Delete
+  document.getElementById('detail-delete-btn').onclick = async () => {
+    if (!confirmDelete('Delete this task?')) return;
+    await apiFetch(`/api/tasks/${taskId}`, { method: 'DELETE' }).catch(showError);
+    closeDetailPanel();
+    loadTasks();
+  };
+}
+
+function updateCompleteBtn(status) {
+  const s = status || document.getElementById('detail-status')?.value;
+  const btn = document.getElementById('detail-complete-btn');
+  const icon = document.getElementById('detail-complete-icon');
+  if (!btn) return;
+  const done = s === 'done';
+  btn.classList.toggle('done', done);
+  if (icon) icon.textContent = done ? '✓' : '○';
+  btn.querySelector('span:last-child') && (btn.lastChild.textContent = done ? ' Completed' : ' Mark complete');
+}
+
+function updatePriorityChip() {
+  const val = document.getElementById('detail-priority')?.value;
+  const wrap = document.getElementById('dm-chip-priority-wrap');
+  const icon = document.getElementById('dm-chip-priority-icon');
+  if (!wrap || !icon) return;
+  const colors = { urgent: 'var(--red)', high: 'var(--orange)', medium: 'var(--yellow)', low: 'var(--green)' };
+  wrap.style.borderColor = colors[val] || 'var(--border)';
+  wrap.style.color = colors[val] || 'var(--text-2)';
+  icon.style.color = colors[val] || 'var(--text-3)';
+}
+
+function updateDueChip(due) {
+  const label = document.getElementById('dm-chip-due-label');
+  const chip = document.querySelector('.dm-chip-due');
+  if (!label || !chip) return;
+  chip.classList.remove('has-date', 'overdue');
+  if (!due) { label.textContent = 'Set due date'; return; }
+  const d = new Date(due);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diff = Math.floor((d - today) / 86400000);
+  chip.classList.add(diff < 0 ? 'overdue' : 'has-date');
+  label.textContent = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : d.toLocaleDateString();
+}
+
+function saveDue() {
+  const val = document.getElementById('detail-due').value;
+  const mysql = toMysqlDateTime(val);
+  saveDetailField('due_date', mysql);
+  updateDueChip(val ? val : null);
+}
+
+async function toggleDetailDone() {
+  if (!_detailTaskId) return;
+  const sel = document.getElementById('detail-status');
+  const newStatus = sel.value === 'done' ? 'todo' : 'done';
+  sel.value = newStatus;
+  await saveDetailField('status', newStatus);
+  updateCompleteBtn(newStatus);
+}
+
+async function loadSubtasks(taskId) {
+  const tasks = await apiFetch('/api/tasks').catch(() => []);
+  const subtasks = tasks.filter(t => t.parent_task_id === taskId);
+  const done = subtasks.filter(t => t.status === 'done').length;
+  const countEl = document.getElementById('dm-subtask-count');
+  if (countEl) countEl.textContent = `${done}/${subtasks.length}`;
+  const el = document.getElementById('detail-subtasks');
+  if (!el) return;
+  el.innerHTML = subtasks.map(t => `
+    <div class="dm-subtask-row">
+      <div class="task-check ${t.status === 'done' ? 'done' : ''}"
+        onclick="toggleTaskDone(${t.id},'${t.status}');setTimeout(()=>loadSubtasks(${taskId}),400)"
+        style="width:16px;height:16px"></div>
+      <span class="dm-subtask-title ${t.status === 'done' ? 'done-text' : ''}">${esc(t.title)}</span>
+    </div>`).join('');
+}
+
+async function addSubtask() {
+  const input = document.getElementById('subtask-input');
+  const title = input.value.trim();
+  if (!title || !_detailTaskId) return;
+  await apiFetch('/api/tasks', {
+    method: 'POST',
+    body: JSON.stringify({ title, parent_task_id: _detailTaskId, created_by: userId() }),
+  }).catch(showError);
+  input.value = '';
+  await loadSubtasks(_detailTaskId);
+  loadTasks();
+}
+
+function renderComments(comments) {
+  const el = document.getElementById('detail-comments');
+  if (!el) return;
+  el.innerHTML = comments.length
+    ? comments.map(c => `
+        <div class="comment-item">
+          <div class="comment-avatar">${(c.username || '?').charAt(0).toUpperCase()}</div>
+          <div class="comment-body">
+            <div class="comment-author">${esc(c.username || 'User')}</div>
+            <div class="comment-text">${esc(c.body)}</div>
+            <div class="comment-time">${dateTimeValue(c.created_at)}</div>
+          </div>
+        </div>`).join('')
+    : '<p style="font-size:12px;color:var(--text-3);margin-bottom:10px">No comments yet</p>';
+}
+
+async function saveDetailField(field, value) {
+  if (!_detailTaskId) return;
+  const body = {};
+  body[field] = value;
+  await apiFetch(`/api/tasks/${_detailTaskId}`, { method: 'PATCH', body: JSON.stringify(body) }).catch(showError);
+  loadTasks();
+}
+
+async function saveDetailFields() {
+  if (!_detailTaskId) return;
+  const body = {
+    title:       document.getElementById('detail-title').value,
+    description: document.getElementById('detail-desc').value || null,
+  };
+  await apiFetch(`/api/tasks/${_detailTaskId}`, { method: 'PATCH', body: JSON.stringify(body) }).catch(showError);
+  loadTasks();
+}
+
+async function submitComment() {
+  if (!_detailTaskId) return;
+  const text = document.getElementById('detail-comment-text').value.trim();
+  if (!text) return;
+  await apiFetch(`/api/tasks/${_detailTaskId}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ userId: userId(), body: text }),
+  }).catch(showError);
+  document.getElementById('detail-comment-text').value = '';
+  const comments = await apiFetch(`/api/tasks/${_detailTaskId}/comments`).catch(() => []);
+  renderComments(comments);
+}
+
+function closeDetailPanel() {
+  document.getElementById('task-detail-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+  _detailTaskId = null;
+}
+
+// ─── THEME TOGGLE ─────────────────────────────────────────────────────────
+function toggleTheme() {
+  const isLight = document.documentElement.classList.toggle('light');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  const icon  = document.getElementById('theme-icon');
+  const label = document.getElementById('theme-label');
+  if (icon)  icon.textContent  = isLight ? '🌙' : '☀';
+  if (label) label.textContent = isLight ? 'Dark mode' : 'Light mode';
+}
+
+(function applyTheme() {
+  const saved = localStorage.getItem('theme');
+  if (saved === 'light') {
+    document.documentElement.classList.add('light');
+    const icon  = document.getElementById('theme-icon');
+    const label = document.getElementById('theme-label');
+    if (icon)  icon.textContent  = '🌙';
+    if (label) label.textContent = 'Dark mode';
+  }
+})();
 
 async function openTaskModal(task) {
   document.getElementById('task-id').value = task?.id || '';
@@ -314,6 +693,17 @@ async function deleteLabel(id) {
   if (!confirmDelete('Delete this label?')) return;
   await apiFetch(`/api/labels/${id}`, { method: 'DELETE' }).catch(showError);
   loadLabels();
+}
+
+async function loadSidebarProjects() {
+  const projects = await apiFetch(`/api/projects?user_id=${userId()}`).catch(() => []);
+  const el = document.getElementById('sidebar-projects');
+  if (!el) return;
+  el.innerHTML = projects.map(p => `
+    <div class="sidebar-proj-link" onclick="openProjectDetail(${p.id},'${esc(p.name)}')">
+      <span class="proj-color-dot" style="background:${esc(p.color)}"></span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span>
+    </div>`).join('') || '<div style="padding:4px 10px;font-size:12px;color:var(--text-3)">No projects yet</div>';
 }
 
 async function loadProjects() {
@@ -472,6 +862,7 @@ async function saveProject(e) {
     e.target.reset();
     closeModal('project-modal');
     loadProjects();
+    loadSidebarProjects();
   } catch (err) {
     showError(err);
   }
@@ -524,37 +915,74 @@ async function deleteNote(id) {
 async function loadCalendar() {
   const year = state.calendarDate.getFullYear();
   const month = state.calendarDate.getMonth();
-  const start = new Date(year, month, 1);
-  const end = new Date(year, month + 1, 0, 23, 59, 59);
+  const firstDay = new Date(year, month, 1);
+  const lastDay  = new Date(year, month + 1, 0);
+  const totalDays = lastDay.getDate();
+
   const params = new URLSearchParams({
     user_id: userId(),
-    from: start.toISOString().slice(0, 19).replace('T', ' '),
-    to: end.toISOString().slice(0, 19).replace('T', ' '),
+    from: `${year}-${String(month+1).padStart(2,'0')}-01 00:00:00`,
+    to:   `${year}-${String(month+1).padStart(2,'0')}-${String(totalDays).padStart(2,'0')} 23:59:59`,
   });
   const events = await apiFetch('/api/calendar?' + params.toString()).catch(() => []);
-  const title = document.getElementById('cal-title');
+
+  document.getElementById('cal-title').textContent =
+    firstDay.toLocaleString('default', { month: 'long', year: 'numeric' });
+
   const grid = document.getElementById('cal-grid');
   const list = document.getElementById('event-list-day');
-
-  title.textContent = state.calendarDate.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+  const today = new Date();
   grid.innerHTML = '';
 
-  for (let day = 1; day <= end.getDate(); day++) {
+  // Monday-first offset: Sun(0)→6, Mon(1)→0, Tue(2)→1 ...
+  const offset = (firstDay.getDay() + 6) % 7;
+  for (let i = 0; i < offset; i++) {
+    const blank = document.createElement('div');
+    blank.className = 'cal-cell cal-blank';
+    grid.appendChild(blank);
+  }
+
+  for (let day = 1; day <= totalDays; day++) {
     const dayEvents = events.filter(ev => new Date(ev.start_at).getDate() === day);
-    const cell = document.createElement('button');
-    cell.className = 'cal-cell';
-    cell.innerHTML = `<strong>${day}</strong><span>${dayEvents.length ? `${dayEvents.length} event` : ''}</span>`;
+    const isToday = today.getFullYear() === year &&
+                    today.getMonth() === month &&
+                    today.getDate() === day;
+
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell' + (isToday ? ' today' : '');
+    cell.innerHTML = `
+      <div class="cal-day-num">${day}</div>
+      ${dayEvents.slice(0,3).map(ev =>
+        `<span class="cal-event-dot" style="color:${esc(ev.color||'var(--cyan)')}">${esc(ev.title)}</span>`
+      ).join('')}
+      ${dayEvents.length > 3 ? `<span class="cal-event-dot" style="color:var(--text-3)">+${dayEvents.length-3} more</span>` : ''}`;
     cell.onclick = () => {
+      document.querySelectorAll('.cal-cell').forEach(c => c.classList.remove('selected'));
+      cell.classList.add('selected');
       list.innerHTML = dayEvents.length
-        ? dayEvents.map(ev => rowCard(ev.title, dateTimeValue(ev.start_at), `deleteEvent(${ev.id})`)).join('')
-        : emptyHtml('No events that day');
+        ? dayEvents.map(ev => `
+          <div class="row-card">
+            <div>
+              <strong>${esc(ev.title)}</strong>
+              <p>${dateTimeValue(ev.start_at)}${ev.location ? ' · ' + esc(ev.location) : ''}</p>
+            </div>
+            <button class="btn-sm btn-del" onclick="deleteEvent(${ev.id})">Delete</button>
+          </div>`).join('')
+        : `<div class="empty-state" style="padding:16px"><span class="empty-state-icon">📅</span>No events on this day</div>`;
     };
     grid.appendChild(cell);
   }
 
   list.innerHTML = events.length
-    ? events.slice(0, 5).map(ev => rowCard(ev.title, dateTimeValue(ev.start_at), `deleteEvent(${ev.id})`)).join('')
-    : emptyHtml('No events this month');
+    ? events.slice(0,5).map(ev => `
+        <div class="row-card">
+          <div>
+            <strong>${esc(ev.title)}</strong>
+            <p>${dateTimeValue(ev.start_at)}${ev.location ? ' · ' + esc(ev.location) : ''}</p>
+          </div>
+          <button class="btn-sm btn-del" onclick="deleteEvent(${ev.id})">Delete</button>
+        </div>`).join('')
+    : `<div class="empty-state" style="padding:16px"><span class="empty-state-icon">📅</span>No events this month</div>`;
 }
 
 function calPrev() {
@@ -892,6 +1320,7 @@ document.querySelectorAll?.('.modal')?.forEach(modal => {
   document.getElementById('sidebar-user').textContent = name;
   const avatarEl = document.getElementById('user-avatar-char');
   if (avatarEl) avatarEl.textContent = name.charAt(0).toUpperCase();
+  loadSidebarProjects();
   loadTasks();
   loadNotifications();
 })();

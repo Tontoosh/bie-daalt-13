@@ -14,5 +14,8 @@ router.delete('/:id',                   c.deleteTask);
 router.get('/:id/labels',               c.getTaskLabels);
 router.post('/:id/labels', validateLabelAssign, c.assignLabel);
 router.delete('/:id/labels/:labelId',   c.removeLabel);
+router.get('/:id/comments',             c.getComments);
+router.post('/:id/comments',            c.addComment);
+router.delete('/:id/comments/:cid',     c.deleteComment);
 
 module.exports = router;

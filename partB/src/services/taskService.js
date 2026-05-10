@@ -103,4 +103,34 @@ async function getTaskLabels(taskId) {
   return rows;
 }
 
-module.exports = { getAllTasks, getTaskById, createTask, updateTask, deleteTask, assignLabel, removeLabel, getTaskLabels };
+async function getComments(taskId) {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `SELECT tc.*, u.username FROM task_comments tc
+     LEFT JOIN users u ON u.id = tc.user_id
+     WHERE tc.task_id = ? ORDER BY tc.created_at ASC`,
+    [taskId]
+  );
+  return rows;
+}
+
+async function addComment(taskId, { userId, body }) {
+  const pool = getPool();
+  const [result] = await pool.execute(
+    'INSERT INTO task_comments (task_id, user_id, body) VALUES (?, ?, ?)',
+    [taskId, userId ?? null, body]
+  );
+  const [[row]] = await pool.execute(
+    `SELECT tc.*, u.username FROM task_comments tc
+     LEFT JOIN users u ON u.id = tc.user_id WHERE tc.id = ?`,
+    [result.insertId]
+  );
+  return row;
+}
+
+async function deleteComment(id) {
+  const pool = getPool();
+  await pool.execute('DELETE FROM task_comments WHERE id = ?', [id]);
+}
+
+module.exports = { getAllTasks, getTaskById, createTask, updateTask, deleteTask, assignLabel, removeLabel, getTaskLabels, getComments, addComment, deleteComment };

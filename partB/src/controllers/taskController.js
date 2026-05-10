@@ -75,4 +75,14 @@ async function removeLabel(req, res, next) {
   }
 }
 
-module.exports = { listTasks, getTask, createTask, updateTask, deleteTask, getTaskLabels, assignLabel, removeLabel };
+async function getComments(req, res, next) {
+  try { res.json(await taskService.getComments(Number(req.params.id))); } catch(e){ next(e); }
+}
+async function addComment(req, res, next) {
+  try { res.status(201).json(await taskService.addComment(Number(req.params.id), req.body)); } catch(e){ next(e); }
+}
+async function deleteComment(req, res, next) {
+  try { await taskService.deleteComment(Number(req.params.cid)); res.status(204).end(); } catch(e){ next(e); }
+}
+
+module.exports = { listTasks, getTask, createTask, updateTask, deleteTask, getTaskLabels, assignLabel, removeLabel, getComments, addComment, deleteComment };
