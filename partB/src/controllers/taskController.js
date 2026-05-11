@@ -4,8 +4,8 @@ const taskService = require('../services/taskService');
 
 async function listTasks(req, res, next) {
   try {
-    const { status, priority, search } = req.query;
-    const tasks = await taskService.getAllTasks({ status, priority, search });
+    const { status, priority, search, label_id } = req.query;
+    const tasks = await taskService.getAllTasks({ status, priority, search, label_id });
     res.json(tasks);
   } catch (err) {
     next(err);

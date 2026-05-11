@@ -2,18 +2,23 @@
 
 const { getPool } = require('../db/database');
 
-async function getAllTasks({ status, priority, search } = {}) {
+async function getAllTasks({ status, priority, search, label_id } = {}) {
   const pool = getPool();
-  let sql = `SELECT t.*, u.username as assignee_name
-             FROM tasks t LEFT JOIN users u ON u.id = t.assignee_id
+  let sql = `SELECT t.*, u.username as assignee_name,
+               GROUP_CONCAT(DISTINCT CONCAT(l.name, ':', l.color) ORDER BY l.name SEPARATOR '|') AS labels_raw
+             FROM tasks t
+             LEFT JOIN users u ON u.id = t.assignee_id
+             LEFT JOIN task_labels tl ON tl.task_id = t.id
+             LEFT JOIN labels l ON l.id = tl.label_id
              WHERE 1=1`;
   const params = [];
 
   if (status)   { sql += ' AND t.status = ?';   params.push(status); }
   if (priority) { sql += ' AND t.priority = ?'; params.push(priority); }
   if (search)   { sql += ' AND t.title LIKE ?'; params.push(`%${search}%`); }
+  if (label_id) { sql += ' AND tl.label_id = ?'; params.push(label_id); }
 
-  sql += ' ORDER BY t.created_at DESC';
+  sql += ' GROUP BY t.id ORDER BY t.created_at DESC';
   const [rows] = await pool.execute(sql, params);
   return rows;
 }

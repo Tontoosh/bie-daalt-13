@@ -132,9 +132,12 @@ function logout() {
 }
 
 let _taskFilter = 'all';
+let _labelFilter = null;
 
-function showSection(name, taskFilter) {
+function showSection(name, taskFilter, labelId) {
   if (name === 'tasks' && taskFilter) _taskFilter = taskFilter;
+  if (name === 'tasks' && labelId !== undefined) _labelFilter = labelId || null;
+  else if (name !== 'tasks') _labelFilter = null;
   const sections = ['tasks','projects','notes','calendar','habits','goals','time','labels','notifications','settings','profile'];
   sections.forEach(s => {
     const el = document.getElementById(`section-${s}`);
@@ -152,6 +155,7 @@ function showSection(name, taskFilter) {
     const t = document.getElementById('task-view-title');
     if (t) t.textContent = titles[_taskFilter] || 'Tasks';
   }
+  if (name === 'tasks') highlightSidebarLabel(_labelFilter);
   const loaders = {
     tasks: loadTasks, projects: loadProjects, notes: loadNotes,
     calendar: loadCalendar, habits: loadHabits, goals: loadGoals,
@@ -236,6 +240,45 @@ function closeModal(id) {
 
 const PRIORITY_COLORS = { urgent: 'var(--red)', high: 'var(--orange)', medium: 'var(--yellow)', low: 'var(--green)' };
 
+function parseLabelChips(labelsRaw) {
+  if (!labelsRaw) return '';
+  return labelsRaw.split('|').map(part => {
+    const [name, color] = part.split(':');
+    if (!name) return '';
+    const bg = color || '#6366f1';
+    return `<span class="task-label-chip" style="--lc:${esc(bg)}">${esc(name)}</span>`;
+  }).join('');
+}
+
+async function loadSidebarLabels() {
+  const el = document.getElementById('sidebar-labels');
+  if (!el) return;
+  const labels = await apiFetch('/api/labels').catch(() => []);
+  if (!labels.length) { el.innerHTML = ''; return; }
+  el.innerHTML = labels.map(l => `
+    <a class="nav-link nav-label-link" id="sidebar-label-${l.id}"
+       onclick="filterByLabel(${l.id},'${esc(l.name)}')">
+      <span class="nav-label-dot" style="background:${esc(l.color)}"></span>
+      ${esc(l.name)}
+    </a>`).join('');
+}
+
+function filterByLabel(labelId, labelName) {
+  _taskFilter = 'all';
+  showSection('tasks', 'all', labelId);
+  const t = document.getElementById('task-view-title');
+  if (t) t.textContent = `# ${labelName}`;
+}
+
+function highlightSidebarLabel(labelId) {
+  document.querySelectorAll('.nav-label-link').forEach(el => {
+    el.classList.remove('active');
+  });
+  if (labelId) {
+    document.getElementById(`sidebar-label-${labelId}`)?.classList.add('active');
+  }
+}
+
 function getDueChip(due) {
   if (!due) return '';
   const d = new Date(due);
@@ -257,6 +300,7 @@ async function loadTasks() {
   if (status)   params.set('status', status);
   if (priority) params.set('priority', priority);
   if (search)   params.set('search', search);
+  if (_labelFilter) params.set('label_id', _labelFilter);
 
   let tasks = await apiFetch('/api/tasks?' + params.toString()).catch(() => []);
 
@@ -302,6 +346,7 @@ async function loadTasks() {
   el.innerHTML = tasks.map(t => {
     const isDone = t.status === 'done' || t.status === 'cancelled';
     const pipColor = PRIORITY_COLORS[t.priority] || 'var(--border-2)';
+    const labelChips = parseLabelChips(t.labels_raw);
     return `
       <div class="task-row p-${t.priority}" onclick="openDetailPanel(${t.id})">
         <div class="task-check ${isDone ? 'done' : ''}"
@@ -310,6 +355,7 @@ async function loadTasks() {
           <div class="task-title-row">
             <div class="task-priority-pip" style="background:${pipColor}" title="${t.priority}"></div>
             <span class="task-name ${isDone ? 'done-text' : ''}">${esc(t.title)}</span>
+            ${labelChips}
           </div>
           ${t.description ? `<div class="task-desc">${esc(t.description)}</div>` : ''}
           <div class="task-meta-row">
@@ -1321,6 +1367,7 @@ document.querySelectorAll?.('.modal')?.forEach(modal => {
   const avatarEl = document.getElementById('user-avatar-char');
   if (avatarEl) avatarEl.textContent = name.charAt(0).toUpperCase();
   loadSidebarProjects();
+  loadSidebarLabels();
   loadTasks();
   loadNotifications();
 })();

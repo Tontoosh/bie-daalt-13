@@ -61,10 +61,11 @@
       <svg class="nav-svg" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M8 5v3l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/></svg>
       Time
     </a>
-    <a class="nav-link" onclick="showSection('labels')">
-      <svg class="nav-svg" viewBox="0 0 16 16"><path d="M2 4a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 010 1.414l-4.414 4.414A1 1 0 018.586 13H4a2 2 0 01-2-2V4z" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>
-      Labels
-    </a>
+    <div class="nav-section-label">
+      <span>Labels</span>
+      <button onclick="showSection('labels')" class="nav-add-btn" title="Manage labels">⚙</button>
+    </div>
+    <div id="sidebar-labels"></div>
 
     <div class="sidebar-divider"></div>
 
