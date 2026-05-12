@@ -1612,6 +1612,10 @@ select option { background: var(--bg-3); color: var(--text); }
   flex: 1;
 }
 
+.modal-actions-right {
+  justify-content: flex-end;
+}
+
 .btn-ghost {
   padding: 9px 16px;
   background: var(--bg-3);
@@ -1881,6 +1885,26 @@ select option { background: var(--bg-3); color: var(--text); }
 }
 .dm-icon-btn:hover { background: var(--bg-3); color: var(--text); }
 
+.dm-delete-btn {
+  height: 30px;
+  padding: 0 12px;
+  background: rgba(248,113,113,.07);
+  border: 1px solid rgba(248,113,113,.3);
+  border-radius: 7px;
+  color: var(--red);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  transition: var(--transition);
+}
+.dm-delete-btn:hover {
+  background: rgba(248,113,113,.15);
+  border-color: var(--red);
+}
+
 /* Body */
 .dm-body {
   flex: 1;
@@ -1915,6 +1939,7 @@ select option { background: var(--bg-3); color: var(--text); }
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  min-height: 30px;
   padding: 5px 11px;
   border: 1px solid var(--border);
   border-radius: 20px;
@@ -1930,6 +1955,75 @@ select option { background: var(--bg-3); color: var(--text); }
 .dm-chip-due.has-date { border-color: var(--cyan); color: var(--cyan); background: rgba(34,211,238,.08); }
 .dm-chip-due.overdue  { border-color: var(--red);  color: var(--red);  background: rgba(248,113,113,.08); }
 
+.dm-due-wrap {
+  position: relative;
+}
+
+.dm-due-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 260px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  box-shadow: var(--shadow);
+  z-index: 20;
+}
+.dm-due-menu.open {
+  display: grid;
+  gap: 6px;
+}
+.dm-due-menu button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-3);
+  color: var(--text);
+  padding: 7px 9px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+.dm-due-menu button:hover {
+  border-color: var(--border-2);
+  background: var(--bg-4);
+}
+.dm-due-custom {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.dm-due-custom label {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+.dm-due-custom label span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.dm-due-custom input {
+  width: 100%;
+  margin: 0;
+  padding: 8px 9px;
+  font-size: 12px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+}
+.dm-due-custom button {
+  text-align: center;
+}
+
 .dm-chip-select {
   background: none;
   border: none;
@@ -1939,7 +2033,11 @@ select option { background: var(--bg-3); color: var(--text); }
   font-family: inherit;
   cursor: pointer;
   outline: none;
-  padding: 0;
+  height: 18px;
+  line-height: 18px;
+  padding: 0 18px 0 0;
+  margin: 0;
+  align-self: center;
 }
 
 /* Field rows */
@@ -2002,6 +2100,13 @@ select option { background: var(--bg-3); color: var(--text); }
 }
 
 .dm-labels { display: flex; flex-wrap: wrap; gap: 6px; }
+.dm-label-add {
+  display: flex;
+  margin-top: 8px;
+}
+.dm-label-add select {
+  flex: 1;
+}
 
 .dm-notes {
   width: 100%;

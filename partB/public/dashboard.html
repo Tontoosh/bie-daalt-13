@@ -110,6 +110,10 @@
               <option value="high">High</option>
               <option value="urgent">Urgent</option>
             </select>
+            <select id="filter-owner" onchange="loadTasks()">
+              <option value="">All tasks</option>
+              <option value="mine">My tasks</option>
+            </select>
             <input type="text" id="filter-search" placeholder="Search…" oninput="loadTasks()">
           </div>
         </div>
@@ -148,6 +152,7 @@
       <label>Due Date</label><input type="datetime-local" id="task-due">
       <label>Project</label><select id="task-project"><option value="">— No project —</option></select>
       <label>Assign to</label><select id="task-assignee"><option value="">— Unassigned —</option></select>
+      <label>Label</label><select id="task-label"><option value="">— No label —</option></select>
       <div class="modal-actions">
         <button type="submit" class="btn-primary">Save Task</button>
         <button type="button" class="btn-ghost" onclick="closeModal('task-modal')">Cancel</button>
@@ -182,7 +187,7 @@
       <button class="dm-complete-btn" id="detail-complete-btn" onclick="toggleDetailDone()">
         <span id="detail-complete-icon">○</span> Mark complete
       </button>
-      <button class="dm-icon-btn" id="detail-delete-btn" title="Delete task">🗑</button>
+      <button class="dm-delete-btn" id="detail-delete-btn" title="Delete task">Delete</button>
       <button class="dm-icon-btn" onclick="closeDetailPanel()" title="Close">✕</button>
     </div>
   </div>
@@ -190,16 +195,34 @@
     <textarea id="detail-title" class="dm-title" rows="1" placeholder="Task name"
       onblur="saveDetailFields()" onkeydown="if(event.key==='Enter'){event.preventDefault();saveDetailFields()}"></textarea>
     <div class="dm-chips">
-      <button class="dm-chip dm-chip-due" onclick="document.getElementById('detail-due').showPicker?.()">
-        <span>📅</span> <span id="dm-chip-due-label">Set due date</span>
-        <input type="datetime-local" id="detail-due" style="display:none" onchange="saveDue()">
-      </button>
+      <div class="dm-due-wrap">
+        <button class="dm-chip dm-chip-due" onclick="toggleDueMenu(event)">
+          <span>📅</span> <span id="dm-chip-due-label">Set due date</span>
+        </button>
+        <div id="detail-due-menu" class="dm-due-menu">
+          <button type="button" onclick="setDetailDuePreset(0)">Today</button>
+          <button type="button" onclick="setDetailDuePreset(1)">Tomorrow</button>
+          <button type="button" onclick="setDetailDuePreset(7)">Next week</button>
+          <button type="button" onclick="clearDetailDue()">Clear</button>
+          <div class="dm-due-custom">
+            <label>
+              <span>Date</span>
+              <input type="date" id="detail-due-date">
+            </label>
+            <label>
+              <span>Time</span>
+              <input type="time" id="detail-due-time" value="09:00">
+            </label>
+            <button type="button" onclick="saveCustomDue()">Set</button>
+          </div>
+        </div>
+      </div>
       <div class="dm-chip">
         <span>◈</span> <span id="dm-chip-project">No project</span>
       </div>
-      <div class="dm-chip dm-chip-priority" id="dm-chip-priority-wrap">
+      <div class="dm-chip dm-chip-priority" id="dm-chip-priority-wrap" onclick="openPrioritySelect()">
         <span id="dm-chip-priority-icon">⚑</span>
-        <select id="detail-priority" class="dm-chip-select" onchange="saveDetailField('priority',this.value);updatePriorityChip()">
+        <select id="detail-priority" class="dm-chip-select" onclick="event.stopPropagation()" onchange="saveDetailField('priority',this.value);updatePriorityChip()">
           <option value="low">Low</option>
           <option value="medium">Medium</option>
           <option value="high">High</option>
@@ -230,6 +253,11 @@
     <div class="dm-section">
       <div class="dm-section-label">LABELS</div>
       <div id="detail-labels" class="dm-labels"></div>
+      <div class="dm-label-add">
+        <select id="detail-label-select" class="dm-field-select" onchange="assignDetailLabel()">
+          <option value="">Add label</option>
+        </select>
+      </div>
     </div>
     <div class="dm-section">
       <div class="dm-section-label">NOTES</div>

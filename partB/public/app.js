@@ -67,6 +67,19 @@ function toMysqlDateTime(value) {
   return value ? value.replace('T', ' ') + ':00' : null;
 }
 
+function dateInputValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function dateTimeLocalValue(date) {
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${dateInputValue(date)}T${hours}:${minutes}`;
+}
+
 function emptyHtml(message) {
   return `<p class="empty-state">${esc(message)}</p>`;
 }
@@ -236,7 +249,12 @@ async function updateProfile(e) {
 function openModal(id) {
   if (id === 'task-modal') return openTaskModal();
   if (id === 'label-modal') return openLabelModal();
-
+  if (id === 'note-modal') {
+    document.getElementById('note-id').value = '';
+    document.querySelector('#note-modal .modal-title').textContent = 'New Note';
+    const deleteBtn = document.getElementById('note-delete-btn');
+    if (deleteBtn) deleteBtn.style.display = 'none';
+  }
   const modal = document.getElementById(id);
   if (modal) modal.style.display = 'flex';
 }
@@ -304,6 +322,7 @@ async function loadTasks() {
   params.set('user_id', userId());
   const status   = document.getElementById('filter-status')?.value;
   const priority = document.getElementById('filter-priority')?.value;
+  const owner    = document.getElementById('filter-owner')?.value;
   const search   = document.getElementById('filter-search')?.value;
   if (status)   params.set('status', status);
   if (priority) params.set('priority', priority);
@@ -328,11 +347,16 @@ async function loadTasks() {
       return d >= today;
     });
   }
+  if (owner === 'mine') {
+    const currentUserId = Number(userId());
+    tasks = tasks.filter(t => Number(t.assignee_id) === currentUserId || (!t.assignee_id && Number(t.created_by) === currentUserId));
+  }
+  tasks = tasks.filter(t => !t.parent_task_id);
 
   // Update today count badge
   const allTasks = await apiFetch(`/api/tasks?user_id=${userId()}`).catch(() => []);
   const todayCount = allTasks.filter(t => {
-    if (!t.due_date || t.status === 'done' || t.status === 'cancelled') return false;
+    if (t.parent_task_id || !t.due_date || t.status === 'done' || t.status === 'cancelled') return false;
     const d = new Date(t.due_date); d.setHours(0,0,0,0);
     return d <= today;
   }).length;
@@ -396,11 +420,12 @@ async function openDetailPanel(taskId) {
   document.getElementById('task-detail-panel').classList.add('open');
   document.getElementById('panel-overlay').classList.add('open');
 
-  const [task, labels, comments, projects] = await Promise.all([
+  const [task, labels, comments, projects, allLabels] = await Promise.all([
     apiFetch(`/api/tasks/${taskId}`),
     apiFetch(`/api/tasks/${taskId}/labels`).catch(() => []),
     apiFetch(`/api/tasks/${taskId}/comments`).catch(() => []),
     apiFetch(`/api/projects?user_id=${userId()}`).catch(() => []),
+    apiFetch('/api/labels').catch(() => []),
   ]);
 
   const proj = projects.find(p => p.id === task.project_id);
@@ -420,8 +445,7 @@ async function openDetailPanel(taskId) {
   updatePriorityChip();
 
   // Due chip
-  const dueInput = document.getElementById('detail-due');
-  dueInput.value = task.due_date ? new Date(task.due_date).toISOString().slice(0, 16) : '';
+  setDetailDueInputs(task.due_date);
   updateDueChip(task.due_date);
 
   // Project chip
@@ -437,7 +461,7 @@ async function openDetailPanel(taskId) {
   allUsers.forEach(u => {
     const o = document.createElement('option');
     o.value = u.id; o.textContent = u.username;
-    if (u.id === task.assignee_id) o.selected = true;
+    if (Number(u.id) === Number(task.assignee_id)) o.selected = true;
     assignSel.appendChild(o);
   });
 
@@ -454,6 +478,15 @@ async function openDetailPanel(taskId) {
         `<span class="badge" style="background:${l.color}22;color:${l.color};border:1px solid ${l.color}44">${esc(l.name)}</span>`
       ).join('')
     : '<span style="font-size:12px;color:var(--text-3)">No labels assigned</span>';
+
+  const assignedLabelIds = new Set(labels.map(l => l.id));
+  const labelSelect = document.getElementById('detail-label-select');
+  if (labelSelect) {
+    const availableLabels = allLabels.filter(l => !assignedLabelIds.has(l.id));
+    labelSelect.innerHTML = '<option value="">Add label</option>' +
+      availableLabels.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
+    labelSelect.disabled = availableLabels.length === 0;
+  }
 
   // Subtasks
   await loadSubtasks(taskId);
@@ -497,6 +530,13 @@ function updatePriorityChip() {
   icon.style.color = colors[val] || 'var(--text-3)';
 }
 
+function openPrioritySelect() {
+  const select = document.getElementById('detail-priority');
+  if (!select) return;
+  if (select.showPicker) select.showPicker();
+  else select.focus();
+}
+
 function updateDueChip(due) {
   const label = document.getElementById('dm-chip-due-label');
   const chip = document.querySelector('.dm-chip-due');
@@ -510,11 +550,53 @@ function updateDueChip(due) {
   label.textContent = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : d.toLocaleDateString();
 }
 
-function saveDue() {
-  const val = document.getElementById('detail-due').value;
-  const mysql = toMysqlDateTime(val);
-  saveDetailField('due_date', mysql);
-  updateDueChip(val ? val : null);
+function setDetailDueInputs(due) {
+  const dateInput = document.getElementById('detail-due-date');
+  const timeInput = document.getElementById('detail-due-time');
+  if (!dateInput || !timeInput) return;
+  if (!due) {
+    dateInput.value = '';
+    timeInput.value = '09:00';
+    return;
+  }
+  const d = new Date(due);
+  dateInput.value = dateInputValue(d);
+  timeInput.value = d.toTimeString().slice(0, 5);
+}
+
+function toggleDueMenu(event) {
+  event?.stopPropagation();
+  document.getElementById('detail-due-menu')?.classList.toggle('open');
+}
+
+function closeDueMenu() {
+  document.getElementById('detail-due-menu')?.classList.remove('open');
+}
+
+async function saveDueValue(value) {
+  await saveDetailField('due_date', value ? toMysqlDateTime(value) : null);
+  setDetailDueInputs(value);
+  updateDueChip(value);
+  closeDueMenu();
+  loadTasks();
+}
+
+function setDetailDuePreset(daysFromToday) {
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromToday);
+  d.setHours(9, 0, 0, 0);
+  saveDueValue(dateTimeLocalValue(d));
+}
+
+function saveCustomDue() {
+  const date = document.getElementById('detail-due-date')?.value;
+  const time = document.getElementById('detail-due-time')?.value || '09:00';
+  if (!date) return;
+  saveDueValue(`${date}T${time}`);
+}
+
+function clearDetailDue() {
+  saveDueValue(null);
 }
 
 async function toggleDetailDone() {
@@ -528,7 +610,7 @@ async function toggleDetailDone() {
 
 async function loadSubtasks(taskId) {
   const tasks = await apiFetch(`/api/tasks?user_id=${userId()}`).catch(() => []);
-  const subtasks = tasks.filter(t => t.parent_task_id === taskId);
+  const subtasks = tasks.filter(t => Number(t.parent_task_id) === Number(taskId));
   const done = subtasks.filter(t => t.status === 'done').length;
   const countEl = document.getElementById('dm-subtask-count');
   if (countEl) countEl.textContent = `${done}/${subtasks.length}`;
@@ -554,6 +636,23 @@ async function addSubtask() {
   input.value = '';
   await loadSubtasks(_detailTaskId);
   loadTasks();
+}
+
+async function assignDetailLabel() {
+  if (!_detailTaskId) return;
+  const select = document.getElementById('detail-label-select');
+  const labelId = Number(select?.value);
+  if (!labelId) return;
+  select.value = '';
+
+  await apiFetch(`/api/tasks/${_detailTaskId}/labels`, {
+    method: 'POST',
+    body: JSON.stringify({ label_id: labelId }),
+  }).catch(showError);
+
+  await openDetailPanel(_detailTaskId);
+  loadTasks();
+  loadSidebarLabels();
 }
 
 function renderComments(comments) {
@@ -647,6 +746,19 @@ async function openTaskModal(task) {
   projSel.onchange = () => populateAssigneeDropdown(Number(projSel.value), task?.assignee_id);
   await populateAssigneeDropdown(task?.project_id || Number(projSel.value), task?.assignee_id);
 
+  const labelSel = document.getElementById('task-label');
+  if (labelSel) {
+    const [allLabels, taskLabels] = await Promise.all([
+      apiFetch('/api/labels').catch(() => []),
+      task?.id ? apiFetch(`/api/tasks/${task.id}/labels`).catch(() => []) : Promise.resolve([]),
+    ]);
+    const assignedIds = new Set(taskLabels.map(l => l.id));
+    const availableLabels = allLabels.filter(l => !assignedIds.has(l.id));
+    labelSel.innerHTML = '<option value="">— No label —</option>' +
+      availableLabels.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
+    labelSel.disabled = availableLabels.length === 0;
+  }
+
   document.getElementById('task-modal').style.display = 'flex';
 }
 
@@ -658,7 +770,7 @@ async function populateAssigneeDropdown(projectId, selectedId) {
     const opt = document.createElement('option');
     opt.value = u.id;
     opt.textContent = u.username;
-    if (u.id === selectedId) opt.selected = true;
+    if (Number(u.id) === Number(selectedId)) opt.selected = true;
     sel.appendChild(opt);
   });
 }
@@ -673,6 +785,7 @@ async function saveTask(e) {
   const id = document.getElementById('task-id').value;
   const projId = Number(document.getElementById('task-project').value) || null;
   const assigneeId = Number(document.getElementById('task-assignee').value) || null;
+  const labelId = Number(document.getElementById('task-label')?.value) || null;
   const body = {
     title: document.getElementById('task-title').value,
     description: document.getElementById('task-desc').value || null,
@@ -685,10 +798,16 @@ async function saveTask(e) {
   };
 
   try {
-    await apiFetch(id ? `/api/tasks/${id}` : '/api/tasks', {
+    const savedTask = await apiFetch(id ? `/api/tasks/${id}` : '/api/tasks', {
       method: id ? 'PATCH' : 'POST',
       body: JSON.stringify(body),
     });
+    if (labelId) {
+      await apiFetch(`/api/tasks/${savedTask.id}/labels`, {
+        method: 'POST',
+        body: JSON.stringify({ label_id: labelId }),
+      });
+    }
     closeModal('task-modal');
     loadTasks();
   } catch (err) {
@@ -1088,22 +1207,51 @@ async function loadNotes() {
   const notes = await apiFetch('/api/notes?' + params.toString()).catch(() => []);
   const el = document.getElementById('note-list');
   el.innerHTML = notes.length
-    ? notes.map(n => cardHtml(n.title, n.body, n.is_pinned ? '#f59e0b' : '#6366f1', `deleteNote(${n.id})`)).join('')
+    ? notes.map(n => `
+      <article class="item-card" style="cursor:pointer" onclick="openNoteEdit(${n.id})">
+        <span class="label-dot" style="background:${n.is_pinned ? '#f59e0b' : '#6366f1'}"></span>
+        <h3>${esc(n.title)}</h3>
+        <p>${esc(n.body || '')}</p>
+      </article>`).join('')
     : emptyHtml('No notes yet');
+}
+
+async function openNoteEdit(noteId) {
+  const note = await apiFetch(`/api/notes/${noteId}`).catch(() => null);
+  if (!note) return;
+  document.getElementById('note-id').value = note.id;
+  document.getElementById('note-title').value = note.title;
+  document.getElementById('note-body').value = note.body || '';
+  document.getElementById('note-pinned').checked = Boolean(note.is_pinned);
+  document.querySelector('#note-modal .modal-title').textContent = 'Edit Note';
+  document.getElementById('note-delete-btn').style.display = 'inline-flex';
+  document.getElementById('note-modal').style.display = 'flex';
 }
 
 async function saveNote(e) {
   e.preventDefault();
+  const id = document.getElementById('note-id').value;
   try {
-    await apiFetch('/api/notes', {
-      method: 'POST',
-      body: JSON.stringify({
-        userId: userId(),
-        title: document.getElementById('note-title').value,
-        body: document.getElementById('note-body').value || null,
-        isPinned: document.getElementById('note-pinned').checked,
-      }),
-    });
+    if (id) {
+      await apiFetch(`/api/notes/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: document.getElementById('note-title').value,
+          body: document.getElementById('note-body').value || null,
+          isPinned: document.getElementById('note-pinned').checked,
+        }),
+      });
+    } else {
+      await apiFetch('/api/notes', {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: userId(),
+          title: document.getElementById('note-title').value,
+          body: document.getElementById('note-body').value || null,
+          isPinned: document.getElementById('note-pinned').checked,
+        }),
+      });
+    }
     e.target.reset();
     closeModal('note-modal');
     loadNotes();
@@ -1116,6 +1264,13 @@ async function deleteNote(id) {
   if (!confirmDelete('Delete this note?')) return;
   await apiFetch(`/api/notes/${id}`, { method: 'DELETE' }).catch(showError);
   loadNotes();
+}
+
+async function deleteCurrentNote() {
+  const id = document.getElementById('note-id')?.value;
+  if (!id) return;
+  await deleteNote(id);
+  closeModal('note-modal');
 }
 
 async function loadCalendar() {
@@ -1278,7 +1433,7 @@ async function loadHabits() {
     const periodLabel = { daily: 'Today', weekly: 'This week', monthly: 'This month' }[s.frequency] || 'Today';
     const streakZero = s.streak === 0;
     return `
-      <article class="item-card">
+      <article class="item-card" style="cursor:pointer" onclick="logHabit(${h.id})">
         <div class="item-card-accent" style="background:${esc(h.color)}"></div>
         <h3>${esc(h.name)}</h3>
         <p style="color:var(--text-3);font-size:12px">${esc(h.frequency)} · target ${h.target_count}×</p>
@@ -1288,8 +1443,7 @@ async function loadHabits() {
           </span>
           <span style="font-size:12px;color:var(--text-3)">${periodLabel}: <strong>${s.todayCount}×</strong></span>
         </div>
-        <div class="card-actions" style="margin-top:12px">
-          <button class="btn-sm btn-accent" onclick="logHabit(${h.id})">✓ +1</button>
+        <div class="card-actions" style="margin-top:12px" onclick="event.stopPropagation()">
           <button class="btn-sm btn-del" onclick="deleteHabit(${h.id})">Delete</button>
         </div>
       </article>`;
@@ -1347,9 +1501,6 @@ async function loadGoals() {
         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-3);margin-top:4px">
           <span>${g.progress}% complete</span>
           <span>${g.target_date ? dateValue(g.target_date) : 'No deadline'}</span>
-        </div>
-        <div class="card-actions" onclick="event.stopPropagation()">
-          <button class="btn-sm btn-del" onclick="deleteGoal(${g.id})">Delete</button>
         </div>
       </article>`).join('')
     : `<div class="empty-state"><span class="empty-state-icon">◎</span>No goals yet</div>`;
@@ -1486,6 +1637,13 @@ async function deleteGoal(id) {
   if (!confirmDelete('Delete this goal?')) return;
   await apiFetch(`/api/goals/${id}`, { method: 'DELETE' }).catch(showError);
   loadGoals();
+}
+
+async function deleteCurrentGoal() {
+  if (!_goalDetailId) return;
+  await deleteGoal(_goalDetailId);
+  _goalDetailId = null;
+  closeModal('goal-detail-modal');
 }
 
 async function loadTimeEntries() {

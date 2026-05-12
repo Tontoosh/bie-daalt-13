@@ -35,13 +35,13 @@ async function getTaskById(id) {
   return row;
 }
 
-async function createTask({ title, description, status, priority, due_date, assignee_id, project_id, created_by } = {}) {
+async function createTask({ title, description, status, priority, due_date, assignee_id, project_id, created_by, parent_task_id } = {}) {
   const pool = getPool();
   const [result] = await pool.execute(
-    `INSERT INTO tasks (title, description, status, priority, due_date, assignee_id, project_id, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tasks (title, description, status, priority, due_date, assignee_id, project_id, created_by, parent_task_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [title, description ?? null, status ?? 'todo', priority ?? 'medium', due_date ?? null,
-     assignee_id ?? null, project_id ?? null, created_by ?? null]
+     assignee_id ?? null, project_id ?? null, created_by ?? null, parent_task_id ? Number(parent_task_id) : null]
   );
   return getTaskById(result.insertId);
 }

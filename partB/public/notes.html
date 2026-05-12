@@ -106,6 +106,7 @@
       <label>Due Date</label><input type="datetime-local" id="task-due">
       <label>Project</label><select id="task-project"><option value="">— No project —</option></select>
       <label>Assign to</label><select id="task-assignee"><option value="">— Unassigned —</option></select>
+      <label>Label</label><select id="task-label"><option value="">— No label —</option></select>
       <div class="modal-actions">
         <button type="submit" class="btn-primary">Save Task</button>
         <button type="button" class="btn-ghost" onclick="closeModal('task-modal')">Cancel</button>
@@ -139,10 +140,12 @@
       <button class="modal-close" onclick="closeModal('note-modal')">✕</button>
     </div>
     <form onsubmit="saveNote(event)">
+      <input type="hidden" id="note-id">
       <label>Title *</label><input type="text" id="note-title" placeholder="Note title…" required>
       <label>Content</label><textarea id="note-body" rows="6" placeholder="Write anything…"></textarea>
       <label class="check-label"><input type="checkbox" id="note-pinned"> Pin this note</label>
       <div class="modal-actions">
+        <button type="button" class="btn-ghost btn-del" id="note-delete-btn" style="display:none" onclick="deleteCurrentNote()">Delete</button>
         <button type="submit" class="btn-primary">Save</button>
         <button type="button" class="btn-ghost" onclick="closeModal('note-modal')">Cancel</button>
       </div>
