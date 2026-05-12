@@ -7,7 +7,7 @@ async function getAllNotes(userId, { search, archived } = {}) {
   let sql = 'SELECT * FROM notes WHERE user_id = ?';
   const params = [userId];
   if (search) { sql += ' AND MATCH(title, body) AGAINST(? IN NATURAL LANGUAGE MODE)'; params.push(search); }
-  if (archived !== undefined) { sql += ' AND is_archived = ?'; params.push(archived ? 1 : 0); }
+  if (archived !== undefined) { sql += ' AND is_archived = ?'; params.push(Number(archived) ? 1 : 0); }
   sql += ' ORDER BY is_pinned DESC, updated_at DESC';
   const [rows] = await pool.execute(sql, params);
   return rows;

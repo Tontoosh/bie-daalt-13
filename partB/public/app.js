@@ -751,8 +751,9 @@ async function loadSidebarProjects() {
   const projects = await apiFetch(`/api/projects?user_id=${userId()}`).catch(() => []);
   const el = document.getElementById('sidebar-projects');
   if (!el) return;
+  const currentId = new URLSearchParams(location.search).get('id');
   el.innerHTML = projects.map(p => `
-    <a class="sidebar-proj-link nav-link" href="projects.html">
+    <a class="sidebar-proj-link nav-link${currentId == p.id ? ' active' : ''}" href="projects.html?id=${p.id}">
       <span class="proj-color-dot" style="background:${esc(p.color)}"></span>
       <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span>
     </a>`).join('') || '<div style="padding:4px 10px;font-size:12px;color:var(--text-3)">No projects yet</div>';
@@ -761,18 +762,22 @@ async function loadSidebarProjects() {
 async function loadProjects() {
   const projects = await apiFetch(`/api/projects?user_id=${userId()}`).catch(() => []);
   const el = document.getElementById('project-list');
+  if (!el) return;
   el.innerHTML = projects.length
     ? projects.map(p => `
-      <article class="item-card">
-        <span class="label-dot" style="background:${esc(p.color || '#6366f1')}"></span>
+      <article class="item-card" style="cursor:pointer" onclick="openProjectDetail(${p.id},'${escAttr(p.name)}')">
+        <div class="item-card-accent" style="background:${esc(p.color || '#6366f1')}"></div>
         <h3>${esc(p.name)}</h3>
         <p>${esc(p.description || '')}</p>
-        <div class="card-actions">
-          <button class="btn-sm" onclick="openProjectDetail(${p.id},'${esc(p.name)}')">Manage</button>
-          <button class="btn-sm btn-del" onclick="deleteProject(${p.id})">Delete</button>
-        </div>
+        <div class="card-actions" onclick="event.stopPropagation()"></div>
       </article>`).join('')
     : emptyHtml('No projects yet');
+
+  const idParam = new URLSearchParams(location.search).get('id');
+  if (idParam) {
+    const proj = projects.find(p => p.id == idParam);
+    if (proj) openProjectDetail(proj.id, proj.name);
+  }
 }
 
 let _currentProjectId = null;
@@ -976,7 +981,16 @@ async function loadCalendar() {
     from: `${year}-${String(month+1).padStart(2,'0')}-01 00:00:00`,
     to:   `${year}-${String(month+1).padStart(2,'0')}-${String(totalDays).padStart(2,'0')} 23:59:59`,
   });
-  const events = await apiFetch('/api/calendar?' + params.toString()).catch(() => []);
+  const [events, allTasks] = await Promise.all([
+    apiFetch('/api/calendar?' + params.toString()).catch(() => []),
+    apiFetch('/api/tasks').catch(() => []),
+  ]);
+
+  const monthTasks = allTasks.filter(t => {
+    if (!t.due_date) return false;
+    const d = new Date(t.due_date);
+    return d.getFullYear() === year && d.getMonth() === month;
+  });
 
   document.getElementById('cal-title').textContent =
     firstDay.toLocaleString('default', { month: 'long', year: 'numeric' });
@@ -996,44 +1010,69 @@ async function loadCalendar() {
 
   for (let day = 1; day <= totalDays; day++) {
     const dayEvents = events.filter(ev => new Date(ev.start_at).getDate() === day);
+    const dayTasks  = monthTasks.filter(t => new Date(t.due_date).getDate() === day);
     const isToday = today.getFullYear() === year &&
                     today.getMonth() === month &&
                     today.getDate() === day;
 
     const cell = document.createElement('div');
     cell.className = 'cal-cell' + (isToday ? ' today' : '');
+    const allItems = [...dayEvents.map(ev => ({ type: 'event', ev })), ...dayTasks.map(t => ({ type: 'task', t }))];
     cell.innerHTML = `
       <div class="cal-day-num">${day}</div>
-      ${dayEvents.slice(0,3).map(ev =>
+      ${dayEvents.slice(0,2).map(ev =>
         `<span class="cal-event-dot" style="color:${esc(ev.color||'var(--cyan)')}">${esc(ev.title)}</span>`
       ).join('')}
-      ${dayEvents.length > 3 ? `<span class="cal-event-dot" style="color:var(--text-3)">+${dayEvents.length-3} more</span>` : ''}`;
+      ${dayTasks.slice(0,2).map(t =>
+        `<span class="cal-event-dot" style="color:var(--text-2);opacity:.8">✓ ${esc(t.title)}</span>`
+      ).join('')}
+      ${allItems.length > 4 ? `<span class="cal-event-dot" style="color:var(--text-3)">+${allItems.length-4} more</span>` : ''}`;
     cell.onclick = () => {
       document.querySelectorAll('.cal-cell').forEach(c => c.classList.remove('selected'));
       cell.classList.add('selected');
-      list.innerHTML = dayEvents.length
-        ? dayEvents.map(ev => `
+      const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      list.innerHTML = '';
+      if (dayEvents.length) {
+        list.innerHTML += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin-bottom:8px">Events</div>`;
+        list.innerHTML += dayEvents.map(ev => `
           <div class="row-card">
             <div>
               <strong>${esc(ev.title)}</strong>
               <p>${dateTimeValue(ev.start_at)}${ev.location ? ' · ' + esc(ev.location) : ''}</p>
             </div>
             <button class="btn-sm btn-del" onclick="deleteEvent(${ev.id})">Delete</button>
-          </div>`).join('')
-        : `<div class="empty-state" style="padding:16px"><span class="empty-state-icon">📅</span>No events on this day</div>`;
+          </div>`).join('');
+      }
+      if (dayTasks.length) {
+        list.innerHTML += `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin:12px 0 8px">Tasks due ${dateStr}</div>`;
+        list.innerHTML += dayTasks.map(t => `
+          <div class="row-card">
+            <div>
+              <span class="badge priority-${esc(t.priority)}">${esc(t.priority)}</span>
+              <strong style="margin-left:6px">${esc(t.title)}</strong>
+              <p><span class="badge status-${esc(t.status)}">${esc(t.status)}</span></p>
+            </div>
+            <button class="btn-sm" onclick="openDetailPanel(${t.id})">Open</button>
+          </div>`).join('');
+      }
+      if (!dayEvents.length && !dayTasks.length) {
+        list.innerHTML = `<div class="empty-state" style="padding:16px"><span class="empty-state-icon">📅</span>No events or tasks on this day</div>`;
+      }
     };
     grid.appendChild(cell);
   }
 
-  list.innerHTML = events.length
-    ? events.slice(0,5).map(ev => `
+  list.innerHTML = (events.length || monthTasks.length)
+    ? [...events.slice(0,3).map(ev => `
         <div class="row-card">
-          <div>
-            <strong>${esc(ev.title)}</strong>
-            <p>${dateTimeValue(ev.start_at)}${ev.location ? ' · ' + esc(ev.location) : ''}</p>
-          </div>
+          <div><strong>${esc(ev.title)}</strong><p>${dateTimeValue(ev.start_at)}</p></div>
           <button class="btn-sm btn-del" onclick="deleteEvent(${ev.id})">Delete</button>
-        </div>`).join('')
+        </div>`),
+       ...monthTasks.slice(0,3).map(t => `
+        <div class="row-card">
+          <div><strong>✓ ${esc(t.title)}</strong><p>${dateValue(t.due_date)} · <span class="badge status-${esc(t.status)}">${esc(t.status)}</span></p></div>
+          <button class="btn-sm" onclick="openDetailPanel(${t.id})">Open</button>
+        </div>`)].join('')
     : `<div class="empty-state" style="padding:16px"><span class="empty-state-icon">📅</span>No events this month</div>`;
 }
 
@@ -1146,9 +1185,10 @@ async function deleteHabit(id) {
 async function loadGoals() {
   const goals = await apiFetch(`/api/goals?user_id=${userId()}`).catch(() => []);
   const el = document.getElementById('goal-list');
+  if (!el) return;
   el.innerHTML = goals.length
     ? goals.map(g => `
-      <article class="item-card">
+      <article class="item-card" style="cursor:pointer" onclick="openGoalDetail(${g.id})">
         <div class="item-card-accent" style="background:${g.status === 'completed' ? 'var(--green)' : g.status === 'abandoned' ? 'var(--red)' : 'var(--accent)'}"></div>
         <h3>${esc(g.title)}</h3>
         <p>${esc(g.description || '')}</p>
@@ -1159,11 +1199,118 @@ async function loadGoals() {
           <span>${g.progress}% complete</span>
           <span>${g.target_date ? dateValue(g.target_date) : 'No deadline'}</span>
         </div>
-        <div class="card-actions">
+        <div class="card-actions" onclick="event.stopPropagation()">
+          <button class="btn-sm btn-accent" onclick="openGoalDetail(${g.id})">Open</button>
           <button class="btn-sm btn-del" onclick="deleteGoal(${g.id})">Delete</button>
         </div>
       </article>`).join('')
     : `<div class="empty-state"><span class="empty-state-icon">◎</span>No goals yet</div>`;
+}
+
+let _goalDetailId = null;
+
+async function openGoalDetail(goalId) {
+  _goalDetailId = goalId;
+  const [goal, milestones, tasks, allTasks] = await Promise.all([
+    apiFetch(`/api/goals/${goalId}`),
+    apiFetch(`/api/goals/${goalId}/milestones`).catch(() => []),
+    apiFetch(`/api/goals/${goalId}/tasks`).catch(() => []),
+    apiFetch('/api/tasks').catch(() => []),
+  ]);
+
+  const modal = document.getElementById('goal-detail-modal');
+  if (!modal) return;
+
+  document.getElementById('gd-title').textContent = goal.title;
+  document.getElementById('gd-desc').textContent = goal.description || '';
+  document.getElementById('gd-status').value = goal.status;
+  document.getElementById('gd-progress-val').textContent = goal.progress + '%';
+  document.getElementById('gd-progress-range').value = goal.progress;
+
+  const msEl = document.getElementById('gd-milestones');
+  msEl.innerHTML = milestones.map(m => `
+    <div class="dm-subtask-row">
+      <div class="task-check ${m.is_done ? 'done' : ''}" style="width:16px;height:16px"
+        onclick="toggleMilestone(${goal.id},${m.id},${m.is_done ? 0 : 1})"></div>
+      <span class="dm-subtask-title ${m.is_done ? 'done-text' : ''}">${esc(m.title)}</span>
+    </div>`).join('') || '<p style="font-size:12px;color:var(--text-3)">No milestones</p>';
+
+  const linkedIds = new Set(tasks.map(t => t.id));
+  const taskEl = document.getElementById('gd-tasks');
+  taskEl.innerHTML = tasks.map(t => `
+    <div class="dm-subtask-row">
+      <div class="task-check ${t.status === 'done' ? 'done' : ''}" style="width:16px;height:16px"></div>
+      <span class="dm-subtask-title ${t.status === 'done' ? 'done-text' : ''}" style="flex:1">${esc(t.title)}</span>
+      <button class="btn-sm btn-del" style="font-size:10px;padding:2px 6px" onclick="unlinkGoalTask(${goal.id},${t.id})">−</button>
+    </div>`).join('') || '<p style="font-size:12px;color:var(--text-3)">No linked tasks</p>';
+
+  const addSel = document.getElementById('gd-task-add');
+  addSel.innerHTML = '<option value="">— Link a task —</option>' +
+    allTasks.filter(t => !linkedIds.has(t.id)).map(t =>
+      `<option value="${t.id}">${esc(t.title)}</option>`).join('');
+
+  modal.style.display = 'flex';
+}
+
+async function toggleMilestone(goalId, msId, isDone) {
+  await apiFetch(`/api/goals/${goalId}/milestones/${msId}`, {
+    method: 'PATCH', body: JSON.stringify({ isDone: Boolean(isDone) }),
+  }).catch(showError);
+  openGoalDetail(goalId);
+}
+
+async function linkGoalTask() {
+  if (!_goalDetailId) return;
+  const sel = document.getElementById('gd-task-add');
+  const taskId = Number(sel.value);
+  if (!taskId) return;
+  await apiFetch(`/api/goals/${_goalDetailId}/tasks`, {
+    method: 'POST', body: JSON.stringify({ taskId }),
+  }).catch(showError);
+  openGoalDetail(_goalDetailId);
+}
+
+async function unlinkGoalTask(goalId, taskId) {
+  await apiFetch(`/api/goals/${goalId}/tasks/${taskId}`, { method: 'DELETE' }).catch(showError);
+  openGoalDetail(goalId);
+}
+
+async function saveGoalProgress() {
+  if (!_goalDetailId) return;
+  const progress = Number(document.getElementById('gd-progress-range').value);
+  await apiFetch(`/api/goals/${_goalDetailId}`, {
+    method: 'PATCH', body: JSON.stringify({ progress }),
+  }).catch(showError);
+  document.getElementById('gd-progress-val').textContent = progress + '%';
+  loadGoals();
+}
+
+async function recalcGoalProgress() {
+  if (!_goalDetailId) return;
+  const updated = await apiFetch(`/api/goals/${_goalDetailId}/recalc`, { method: 'POST' }).catch(showError);
+  if (updated) openGoalDetail(_goalDetailId);
+  loadGoals();
+}
+
+async function saveGoalStatus() {
+  if (!_goalDetailId) return;
+  const status = document.getElementById('gd-status').value;
+  await apiFetch(`/api/goals/${_goalDetailId}`, {
+    method: 'PATCH', body: JSON.stringify({ status }),
+  }).catch(showError);
+  loadGoals();
+}
+
+async function addGoalMilestone() {
+  if (!_goalDetailId) return;
+  const input = document.getElementById('gd-ms-input');
+  const title = input.value.trim();
+  if (!title) return;
+  await apiFetch(`/api/goals/${_goalDetailId}/milestones`, {
+    method: 'POST', body: JSON.stringify({ title }),
+  }).catch(showError);
+  input.value = '';
+  openGoalDetail(_goalDetailId);
 }
 
 async function saveGoal(e) {
@@ -1231,28 +1378,34 @@ async function saveTimeEntry(e) {
 
 async function toggleTimer() {
   const btn = document.getElementById('timer-btn');
-  if (!state.activeTimerId) {
-    state.focusDoneNotified = false;
-    const entry = await apiFetch('/api/time/start', {
-      method: 'POST',
-      body: JSON.stringify({ user_id: userId(), description: 'Timer session' }),
-    }).catch(err => {
-      showError(err);
-      return null;
-    });
-    if (!entry) return;
-    state.activeTimerId = entry.id;
-    state.timerStartedAt = new Date(entry.started_at || Date.now());
-    btn.textContent = 'stop';
-    btn.classList.add('running');
-  } else {
-    await apiFetch(`/api/time/${state.activeTimerId}/stop`, { method: 'PATCH' }).catch(showError);
-    state.activeTimerId = null;
-    state.timerStartedAt = null;
-    btn.textContent = 'start';
-    btn.classList.remove('running');
-    renderFocusClock();
-    loadTimeEntries();
+  if (btn.disabled) return;
+  btn.disabled = true;
+
+  try {
+    if (!state.activeTimerId) {
+      state.focusDoneNotified = false;
+      const entry = await apiFetch('/api/time/start', {
+        method: 'POST',
+        body: JSON.stringify({ user_id: userId(), description: 'Timer session' }),
+      });
+      state.activeTimerId = entry.id;
+      state.timerStartedAt = new Date();
+      btn.textContent = 'stop';
+      btn.classList.add('running');
+      renderFocusClock();
+    } else {
+      await apiFetch(`/api/time/${state.activeTimerId}/stop`, { method: 'PATCH' });
+      state.activeTimerId = null;
+      state.timerStartedAt = null;
+      btn.textContent = 'start';
+      btn.classList.remove('running');
+      renderFocusClock();
+      loadTimeEntries();
+    }
+  } catch (err) {
+    showError(err);
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -1601,6 +1754,10 @@ function currentPage() {
   if (page === 'tasks') {
     _taskFilter = sp.get('filter') || 'all';
     _labelFilter = sp.get('label') ? Number(sp.get('label')) : null;
+    if (_taskFilter !== 'all') {
+      document.querySelectorAll('[data-page="tasks"]').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll(`.nav-link[href="dashboard.html?filter=${_taskFilter}"]`).forEach(el => el.classList.add('active'));
+    }
     loadTasks();
   } else if (page === 'calendar')      loadCalendar();
   else if (page === 'notes')           loadNotes();

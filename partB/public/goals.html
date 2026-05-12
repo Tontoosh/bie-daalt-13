@@ -49,6 +49,56 @@
 <div id="task-modal" class="modal" style="display:none"><div class="modal-box"><div class="modal-header"><span class="modal-title" id="task-modal-title">New Task</span><button class="modal-close" onclick="closeModal('task-modal')">✕</button></div><form onsubmit="saveTask(event)"><input type="hidden" id="task-id"><label>Title *</label><input type="text" id="task-title" required><label>Description</label><textarea id="task-desc" rows="2"></textarea><label>Status</label><select id="task-status"><option value="todo">Todo</option><option value="in-progress">In Progress</option><option value="in-review">In Review</option><option value="done">Done</option><option value="cancelled">Cancelled</option></select><label>Priority</label><select id="task-priority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select><label>Due Date</label><input type="datetime-local" id="task-due"><label>Project</label><select id="task-project"><option value="">No project</option></select><label>Assign to</label><select id="task-assignee"><option value="">Unassigned</option></select><div class="modal-actions"><button type="submit" class="btn-primary">Save Task</button><button type="button" class="btn-ghost" onclick="closeModal('task-modal')">Cancel</button></div></form></div></div>
 <div id="project-modal" class="modal" style="display:none"><div class="modal-box"><div class="modal-header"><span class="modal-title">New Project</span><button class="modal-close" onclick="closeModal('project-modal')">✕</button></div><form onsubmit="saveProject(event)"><label>Name *</label><input type="text" id="proj-name" required><label>Description</label><textarea id="proj-desc" rows="2"></textarea><label>Color</label><input type="color" id="proj-color" value="#7c6af7"><div class="modal-actions"><button type="submit" class="btn-primary">Create</button><button type="button" class="btn-ghost" onclick="closeModal('project-modal')">Cancel</button></div></form></div></div>
 <div id="goal-modal" class="modal" style="display:none"><div class="modal-box"><div class="modal-header"><span class="modal-title">New Goal</span><button class="modal-close" onclick="closeModal('goal-modal')">✕</button></div><form onsubmit="saveGoal(event)"><label>Title *</label><input type="text" id="goal-title" placeholder="What do you want to achieve?" required><label>Description</label><textarea id="goal-desc" rows="2"></textarea><label>Target Date</label><input type="date" id="goal-date"><label>Initial Progress (%)</label><input type="number" id="goal-progress" min="0" max="100" value="0"><div class="modal-actions"><button type="submit" class="btn-primary">Create</button><button type="button" class="btn-ghost" onclick="closeModal('goal-modal')">Cancel</button></div></form></div></div>
+
+<div id="goal-detail-modal" class="modal" style="display:none">
+  <div class="modal-box" style="width:560px;max-height:80vh;overflow-y:auto">
+    <div class="modal-header">
+      <span class="modal-title" id="gd-title"></span>
+      <button class="modal-close" onclick="closeModal('goal-detail-modal')">✕</button>
+    </div>
+    <p id="gd-desc" style="color:var(--text-3);font-size:13px;margin-bottom:16px"></p>
+
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+      <label style="font-size:12px;font-weight:600;color:var(--text-2)">Status</label>
+      <select id="gd-status" onchange="saveGoalStatus()" style="flex:1;min-width:100px">
+        <option value="active">Active</option>
+        <option value="completed">Completed</option>
+        <option value="abandoned">Abandoned</option>
+      </select>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)">Progress</span>
+        <span id="gd-progress-val" style="font-size:13px;font-weight:600;color:var(--accent)">0%</span>
+      </div>
+      <input type="range" id="gd-progress-range" min="0" max="100" style="width:100%" oninput="document.getElementById('gd-progress-val').textContent=this.value+'%'">
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn-sm btn-accent" onclick="saveGoalProgress()">Set Progress</button>
+        <button class="btn-sm" onclick="recalcGoalProgress()" title="Auto-calculate from linked tasks">↺ Recalc from tasks</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <div class="dm-section-label">MILESTONES</div>
+      <div id="gd-milestones" style="margin-bottom:8px"></div>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="gd-ms-input" placeholder="Add milestone…" style="flex:1" onkeydown="if(event.key==='Enter')addGoalMilestone()">
+        <button class="btn-sm btn-accent" onclick="addGoalMilestone()">+</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="dm-section-label">LINKED TASKS</div>
+      <div id="gd-tasks" style="margin-bottom:8px"></div>
+      <div style="display:flex;gap:6px">
+        <select id="gd-task-add" style="flex:1"><option value="">— Link a task —</option></select>
+        <button class="btn-sm btn-accent" onclick="linkGoalTask()">Link</button>
+      </div>
+      <p style="font-size:11px;color:var(--text-3);margin-top:6px">When all linked tasks are done → click "Recalc from tasks" to auto-set 100%</p>
+    </div>
+  </div>
+</div>
 <script src="app.js"></script>
 </body>
 </html>

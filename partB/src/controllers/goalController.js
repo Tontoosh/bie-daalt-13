@@ -31,4 +31,22 @@ async function updateMilestone(req, res, next) {
 async function deleteMilestone(req, res, next) {
   try { await s.deleteMilestone(Number(req.params.mid)); res.status(204).end(); } catch(e){ next(e); }
 }
-module.exports = { listGoals, getGoal, createGoal, updateGoal, deleteGoal, getMilestones, addMilestone, updateMilestone, deleteMilestone };
+async function getGoalTasks(req, res, next) {
+  try { res.json(await s.getGoalTasks(Number(req.params.id))); } catch(e){ next(e); }
+}
+async function linkTask(req, res, next) {
+  try {
+    await s.linkTask(Number(req.params.id), Number(req.body.taskId));
+    res.status(201).json({ ok: true });
+  } catch(e){ next(e); }
+}
+async function unlinkTask(req, res, next) {
+  try {
+    await s.unlinkTask(Number(req.params.id), Number(req.params.taskId));
+    res.status(204).end();
+  } catch(e){ next(e); }
+}
+async function recalcProgress(req, res, next) {
+  try { res.json(await s.recalcProgress(Number(req.params.id))); } catch(e){ next(e); }
+}
+module.exports = { listGoals, getGoal, createGoal, updateGoal, deleteGoal, getMilestones, addMilestone, updateMilestone, deleteMilestone, getGoalTasks, linkTask, unlinkTask, recalcProgress };

@@ -79,4 +79,44 @@ async function deleteMilestone(id) {
   await pool.execute('DELETE FROM goal_milestones WHERE id = ?', [id]);
 }
 
-module.exports = { getGoals, getGoalById, createGoal, updateGoal, deleteGoal, getMilestones, addMilestone, updateMilestone, deleteMilestone };
+async function getGoalTasks(goalId) {
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `SELECT t.* FROM tasks t
+     JOIN goal_tasks gt ON gt.task_id = t.id
+     WHERE gt.goal_id = ? ORDER BY t.created_at`,
+    [goalId]
+  );
+  return rows;
+}
+
+async function linkTask(goalId, taskId) {
+  const pool = getPool();
+  await pool.execute(
+    'INSERT IGNORE INTO goal_tasks (goal_id, task_id) VALUES (?, ?)',
+    [goalId, taskId]
+  );
+}
+
+async function unlinkTask(goalId, taskId) {
+  const pool = getPool();
+  await pool.execute('DELETE FROM goal_tasks WHERE goal_id = ? AND task_id = ?', [goalId, taskId]);
+}
+
+async function recalcProgress(goalId) {
+  const pool = getPool();
+  const [tasks] = await pool.execute(
+    'SELECT status FROM tasks t JOIN goal_tasks gt ON gt.task_id = t.id WHERE gt.goal_id = ?',
+    [goalId]
+  );
+  if (!tasks.length) return getGoalById(goalId);
+  const done = tasks.filter(t => t.status === 'done').length;
+  const progress = Math.round((done / tasks.length) * 100);
+  await pool.execute('UPDATE goals SET progress = ? WHERE id = ?', [progress, goalId]);
+  if (progress === 100) {
+    await pool.execute('UPDATE goals SET status = "completed" WHERE id = ? AND status = "active"', [goalId]);
+  }
+  return getGoalById(goalId);
+}
+
+module.exports = { getGoals, getGoalById, createGoal, updateGoal, deleteGoal, getMilestones, addMilestone, updateMilestone, deleteMilestone, getGoalTasks, linkTask, unlinkTask, recalcProgress };
