@@ -29,7 +29,7 @@ async function searchUsers(query) {
   const pool = getPool();
   const like = `%${query}%`;
   const [rows] = await pool.execute(
-    'SELECT id, username, email FROM users WHERE email LIKE ? OR username LIKE ? LIMIT 10',
+    'SELECT id, username, email FROM users WHERE email LIKE ? OR username LIKE ? LIMIT 100',
     [like, like]
   );
   return rows;

@@ -2,7 +2,7 @@
 
 const { getPool } = require('../db/database');
 
-async function getAllTasks({ status, priority, search, label_id } = {}) {
+async function getAllTasks({ status, priority, search, label_id, user_id } = {}) {
   const pool = getPool();
   let sql = `SELECT t.*, u.username as assignee_name,
                GROUP_CONCAT(DISTINCT CONCAT(l.name, ':', l.color) ORDER BY l.name SEPARATOR '|') AS labels_raw
@@ -13,9 +13,10 @@ async function getAllTasks({ status, priority, search, label_id } = {}) {
              WHERE 1=1`;
   const params = [];
 
-  if (status)   { sql += ' AND t.status = ?';   params.push(status); }
-  if (priority) { sql += ' AND t.priority = ?'; params.push(priority); }
-  if (search)   { sql += ' AND t.title LIKE ?'; params.push(`%${search}%`); }
+  if (user_id)  { sql += ' AND (t.created_by = ? OR t.assignee_id = ?)'; params.push(user_id, user_id); }
+  if (status)   { sql += ' AND t.status = ?';    params.push(status); }
+  if (priority) { sql += ' AND t.priority = ?';  params.push(priority); }
+  if (search)   { sql += ' AND t.title LIKE ?';  params.push(`%${search}%`); }
   if (label_id) { sql += ' AND tl.label_id = ?'; params.push(label_id); }
 
   sql += ' GROUP BY t.id ORDER BY t.created_at DESC';
@@ -45,16 +46,19 @@ async function createTask({ title, description, status, priority, due_date, assi
   return getTaskById(result.insertId);
 }
 
-async function updateTask(id, { title, description, status, priority, due_date }) {
+async function updateTask(id, { title, description, status, priority, due_date, assignee_id, project_id, parent_task_id }) {
   const pool = getPool();
   const fields = [];
   const params = [];
 
-  if (title       !== undefined) { fields.push('title = ?');       params.push(title); }
-  if (description !== undefined) { fields.push('description = ?'); params.push(description ?? null); }
-  if (status      !== undefined) { fields.push('status = ?');      params.push(status); }
-  if (priority    !== undefined) { fields.push('priority = ?');    params.push(priority); }
-  if (due_date    !== undefined) { fields.push('due_date = ?');    params.push(due_date ?? null); }
+  if (title          !== undefined) { fields.push('title = ?');          params.push(title); }
+  if (description    !== undefined) { fields.push('description = ?');    params.push(description ?? null); }
+  if (status         !== undefined) { fields.push('status = ?');         params.push(status); }
+  if (priority       !== undefined) { fields.push('priority = ?');       params.push(priority); }
+  if (due_date       !== undefined) { fields.push('due_date = ?');       params.push(due_date ?? null); }
+  if (assignee_id    !== undefined) { fields.push('assignee_id = ?');    params.push(assignee_id ? Number(assignee_id) : null); }
+  if (project_id     !== undefined) { fields.push('project_id = ?');     params.push(project_id ? Number(project_id) : null); }
+  if (parent_task_id !== undefined) { fields.push('parent_task_id = ?'); params.push(parent_task_id ? Number(parent_task_id) : null); }
 
   if (fields.length === 0) return getTaskById(id);
 
