@@ -25,6 +25,8 @@ async function createNotification({ userId, type, title, body, refType, refId } 
 async function markRead(id) {
   const pool = getPool();
   await pool.execute('UPDATE notifications SET is_read = 1 WHERE id = ?', [id]);
+  const [[row]] = await pool.execute('SELECT * FROM notifications WHERE id = ?', [id]);
+  return row;
 }
 
 async function markAllRead(userId) {

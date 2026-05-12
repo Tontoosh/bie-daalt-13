@@ -5,6 +5,8 @@ const state = {
   calendarDate: new Date(),
   activeTimerId: null,
   timerStartedAt: null,
+  focusDurationSeconds: 25 * 60,
+  focusDoneNotified: false,
 };
 
 async function apiFetch(path, opts = {}) {
@@ -47,6 +49,10 @@ function esc(str) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function escAttr(str) {
+  return esc(str).replace(/"/g, '&quot;');
 }
 
 function dateValue(value) {
@@ -257,7 +263,7 @@ async function loadSidebarLabels() {
   if (!labels.length) { el.innerHTML = ''; return; }
   el.innerHTML = labels.map(l => `
     <a class="nav-link nav-label-link" id="sidebar-label-${l.id}"
-       onclick="filterByLabel(${l.id},'${esc(l.name)}')">
+       href="dashboard.html?label=${l.id}">
       <span class="nav-label-dot" style="background:${esc(l.color)}"></span>
       ${esc(l.name)}
     </a>`).join('');
@@ -746,10 +752,10 @@ async function loadSidebarProjects() {
   const el = document.getElementById('sidebar-projects');
   if (!el) return;
   el.innerHTML = projects.map(p => `
-    <div class="sidebar-proj-link" onclick="openProjectDetail(${p.id},'${esc(p.name)}')">
+    <a class="sidebar-proj-link nav-link" href="projects.html">
       <span class="proj-color-dot" style="background:${esc(p.color)}"></span>
       <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span>
-    </div>`).join('') || '<div style="padding:4px 10px;font-size:12px;color:var(--text-3)">No projects yet</div>';
+    </a>`).join('') || '<div style="padding:4px 10px;font-size:12px;color:var(--text-3)">No projects yet</div>';
 }
 
 async function loadProjects() {
@@ -1073,22 +1079,29 @@ async function deleteEvent(id) {
 async function loadHabits() {
   const habits = await apiFetch(`/api/habits?user_id=${userId()}`).catch(() => []);
   const el = document.getElementById('habit-list');
+  if (!el) return;
   if (!habits.length) {
     el.innerHTML = `<div class="empty-state"><span class="empty-state-icon">◉</span>No habits yet</div>`;
     return;
   }
   const items = await Promise.all(habits.map(async h => {
-    const streak = await apiFetch(`/api/habits/${h.id}/streak`).catch(() => ({ streak: 0 }));
+    const s = await apiFetch(`/api/habits/${h.id}/streak`).catch(() => ({ streak: 0, todayCount: 0, frequency: h.frequency }));
+    const unitLabel = { daily: 'day', weekly: 'week', monthly: 'month' }[s.frequency] || 'day';
+    const periodLabel = { daily: 'Today', weekly: 'This week', monthly: 'This month' }[s.frequency] || 'Today';
+    const streakZero = s.streak === 0;
     return `
       <article class="item-card">
         <div class="item-card-accent" style="background:${esc(h.color)}"></div>
         <h3>${esc(h.name)}</h3>
         <p style="color:var(--text-3);font-size:12px">${esc(h.frequency)} · target ${h.target_count}×</p>
-        <div style="margin-top:10px">
-          <span class="streak-badge">🔥 ${streak.streak} day streak</span>
+        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="streak-badge" style="${streakZero ? 'opacity:.4' : ''}">
+            🔥 ${s.streak} ${unitLabel} streak
+          </span>
+          <span style="font-size:12px;color:var(--text-3)">${periodLabel}: <strong>${s.todayCount}×</strong></span>
         </div>
         <div class="card-actions" style="margin-top:12px">
-          <button class="btn-sm btn-accent" onclick="logHabit(${h.id})">✓ Log</button>
+          <button class="btn-sm btn-accent" onclick="logHabit(${h.id})">✓ +1</button>
           <button class="btn-sm btn-del" onclick="deleteHabit(${h.id})">Delete</button>
         </div>
       </article>`;
@@ -1181,6 +1194,7 @@ async function deleteGoal(id) {
 }
 
 async function loadTimeEntries() {
+  applyFocusSettings();
   const entries = await apiFetch(`/api/time?user_id=${userId()}`).catch(() => []);
   const tbody = document.getElementById('time-list');
   tbody.innerHTML = entries.length
@@ -1218,6 +1232,7 @@ async function saveTimeEntry(e) {
 async function toggleTimer() {
   const btn = document.getElementById('timer-btn');
   if (!state.activeTimerId) {
+    state.focusDoneNotified = false;
     const entry = await apiFetch('/api/time/start', {
       method: 'POST',
       body: JSON.stringify({ user_id: userId(), description: 'Timer session' }),
@@ -1228,17 +1243,214 @@ async function toggleTimer() {
     if (!entry) return;
     state.activeTimerId = entry.id;
     state.timerStartedAt = new Date(entry.started_at || Date.now());
-    btn.textContent = '■ Stop';
+    btn.textContent = 'stop';
     btn.classList.add('running');
   } else {
     await apiFetch(`/api/time/${state.activeTimerId}/stop`, { method: 'PATCH' }).catch(showError);
     state.activeTimerId = null;
     state.timerStartedAt = null;
-    btn.textContent = '▶ Start';
+    btn.textContent = 'start';
     btn.classList.remove('running');
-    document.getElementById('timer-display').textContent = '00:00:00';
+    renderFocusClock();
     loadTimeEntries();
   }
+}
+
+function focusStorageKey() {
+  return `taskflow.focus.${userId() || 'guest'}`;
+}
+
+function getFocusSettings() {
+  const defaults = {
+    backgroundUrl: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1800&q=80',
+    youtubeUrl: '',
+    discordUrl: '',
+    discordWidgetUrl: '',
+    quickNote: '',
+  };
+  try {
+    return { ...defaults, ...JSON.parse(localStorage.getItem(focusStorageKey())) };
+  } catch {
+    return defaults;
+  }
+}
+
+function saveFocusSettings() {
+  const settings = {
+    ...getFocusSettings(),
+    backgroundUrl: document.getElementById('focus-bg-url')?.value.trim() || '',
+    youtubeUrl: document.getElementById('focus-youtube-url')?.value.trim() || '',
+    discordUrl: document.getElementById('focus-discord-url')?.value.trim() || '',
+    discordWidgetUrl: document.getElementById('focus-discord-widget')?.value.trim() || '',
+  };
+  localStorage.setItem(focusStorageKey(), JSON.stringify(settings));
+  applyFocusSettings();
+}
+
+function saveFocusQuickNote() {
+  const settings = { ...getFocusSettings(), quickNote: document.getElementById('focus-quick-note')?.value || '' };
+  localStorage.setItem(focusStorageKey(), JSON.stringify(settings));
+}
+
+function applyFocusSettings() {
+  const scene = document.getElementById('focus-scene');
+  if (!scene) return;
+  const settings = getFocusSettings();
+  const fallbackBg = 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1800&q=80';
+  scene.style.setProperty('--focus-bg', `url("${settings.backgroundUrl || fallbackBg}")`);
+
+  const bgInput = document.getElementById('focus-bg-url');
+  const ytInput = document.getElementById('focus-youtube-url');
+  const discordInput = document.getElementById('focus-discord-url');
+  const widgetInput = document.getElementById('focus-discord-widget');
+  const noteInput = document.getElementById('focus-quick-note');
+  if (bgInput) bgInput.value = settings.backgroundUrl;
+  if (ytInput) ytInput.value = settings.youtubeUrl;
+  if (discordInput) discordInput.value = settings.discordUrl;
+  if (widgetInput) widgetInput.value = settings.discordWidgetUrl;
+  if (noteInput) noteInput.value = settings.quickNote || '';
+
+  applyYoutubePlayer(settings.youtubeUrl);
+  applyDiscordPanel(settings);
+  renderFocusClock();
+}
+
+function applyYoutubePlayer(url) {
+  const frame = document.getElementById('focus-youtube-frame');
+  const empty = document.getElementById('focus-youtube-empty');
+  if (!frame || !empty) return;
+  const embed = toYoutubeEmbedUrl(url);
+  frame.style.display = embed ? '' : 'none';
+  empty.style.display = embed ? 'none' : '';
+  if (embed && frame.src !== embed) frame.src = embed;
+  if (!embed) frame.removeAttribute('src');
+}
+
+function toYoutubeEmbedUrl(url) {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    let id = '';
+    if (parsed.hostname.includes('youtu.be')) id = parsed.pathname.slice(1);
+    if (parsed.hostname.includes('youtube.com')) id = parsed.searchParams.get('v') || parsed.pathname.split('/').pop();
+    return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}?autoplay=0&controls=1` : '';
+  } catch {
+    return '';
+  }
+}
+
+function applyDiscordPanel(settings) {
+  const hasDiscord = Boolean(settings.discordUrl || settings.discordWidgetUrl);
+  const discordBtn = document.querySelector('[onclick="toggleFocusPanel(\'focus-discord-panel\')"]');
+  const panel = document.getElementById('focus-discord-panel');
+  const link = document.getElementById('focus-discord-link');
+  const widgetWrap = document.getElementById('focus-discord-widget-wrap');
+  if (discordBtn) discordBtn.style.display = hasDiscord ? '' : 'none';
+  if (panel && !hasDiscord) panel.style.display = 'none';
+  if (link) {
+    link.style.display = settings.discordUrl ? '' : 'none';
+    link.href = settings.discordUrl || '#';
+  }
+  if (!widgetWrap) return;
+  if (settings.discordWidgetUrl) {
+    widgetWrap.className = 'focus-widget-frame';
+    widgetWrap.innerHTML = `<iframe title="Discord widget" src="${escAttr(settings.discordWidgetUrl)}" allowtransparency="true" sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"></iframe>`;
+  } else {
+    widgetWrap.className = 'focus-widget-empty';
+    widgetWrap.textContent = 'Add a Discord widget URL in settings';
+  }
+}
+
+function toggleFocusPanel(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+function setFocusMode(button, minutes) {
+  document.querySelectorAll('.focus-mode').forEach(el => el.classList.toggle('active', el === button));
+  state.focusDurationSeconds = minutes * 60;
+  state.focusDoneNotified = false;
+  if (!state.activeTimerId) renderFocusClock();
+}
+
+function resetFocusClock() {
+  state.focusDoneNotified = false;
+  if (!state.activeTimerId) {
+    renderFocusClock();
+    return;
+  }
+  state.timerStartedAt = new Date();
+  renderFocusClock();
+}
+
+function renderFocusClock() {
+  const display = document.getElementById('timer-display');
+  if (!display) return;
+  if (!state.timerStartedAt) {
+    display.textContent = formatClock(state.focusDurationSeconds);
+    return;
+  }
+  const elapsed = Math.floor((Date.now() - state.timerStartedAt.getTime()) / 1000);
+  const remaining = Math.max(0, state.focusDurationSeconds - elapsed);
+  display.textContent = formatClock(remaining);
+  if (remaining === 0 && !state.focusDoneNotified) notifyFocusDone();
+}
+
+function formatClock(totalSeconds) {
+  const safeSeconds = Math.max(0, totalSeconds);
+  if (safeSeconds < 3600) {
+    const minutes = Math.floor(safeSeconds / 60);
+    const seconds = safeSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+  return new Date(safeSeconds * 1000).toISOString().slice(11, 19);
+}
+
+function notifyFocusDone() {
+  state.focusDoneNotified = true;
+  playFocusAlarm();
+  showFocusToast('Time is up. Take a break or start the next session.');
+  if ('Notification' in window) {
+    if (Notification.permission === 'granted') {
+      new Notification('Focus timer finished', { body: 'Time is up. Take a break or start the next session.' });
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') new Notification('Focus timer finished', { body: 'Time is up.' });
+      });
+    }
+  }
+}
+
+function playFocusAlarm() {
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return;
+  const ctx = new AudioContext();
+  [0, 0.18, 0.36].forEach(offset => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.001, ctx.currentTime + offset);
+    gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + offset + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.14);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(ctx.currentTime + offset);
+    osc.stop(ctx.currentTime + offset + 0.16);
+  });
+}
+
+function showFocusToast(message) {
+  let toast = document.getElementById('focus-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'focus-toast';
+    toast.className = 'focus-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.add('show');
+  window.clearTimeout(showFocusToast._timer);
+  showFocusToast._timer = window.setTimeout(() => toast.classList.remove('show'), 6000);
 }
 
 async function deleteTimeEntry(id) {
@@ -1338,8 +1550,7 @@ function formatSeconds(seconds) {
 
 setInterval(() => {
   if (!state.timerStartedAt) return;
-  const elapsed = Math.floor((Date.now() - state.timerStartedAt.getTime()) / 1000);
-  document.getElementById('timer-display').textContent = new Date(elapsed * 1000).toISOString().slice(11, 19);
+  renderFocusClock();
 }, 1000);
 
 document.querySelectorAll?.('.modal')?.forEach(modal => {
@@ -1348,26 +1559,57 @@ document.querySelectorAll?.('.modal')?.forEach(modal => {
   });
 });
 
+function currentPage() {
+  const p = location.pathname;
+  if (p.endsWith('calendar.html'))      return 'calendar';
+  if (p.endsWith('notes.html'))         return 'notes';
+  if (p.endsWith('habits.html'))        return 'habits';
+  if (p.endsWith('goals.html'))         return 'goals';
+  if (p.endsWith('time.html'))          return 'time';
+  if (p.endsWith('labels.html'))        return 'labels';
+  if (p.endsWith('notifications.html')) return 'notifications';
+  if (p.endsWith('projects.html'))      return 'projects';
+  if (p.endsWith('settings.html'))      return 'settings';
+  if (p.endsWith('profile.html'))       return 'profile';
+  if (p.endsWith('dashboard.html') || p === '/' || p.endsWith('/')) return 'tasks';
+  return null;
+}
+
 (function init() {
-  const isDash = location.pathname.endsWith('dashboard.html');
+  const page = currentPage();
   const user = getUser();
 
-  if (isDash && !user) {
-    location.href = 'index.html';
-    return;
-  }
-  if (!isDash && user) {
-    location.href = 'dashboard.html';
-    return;
-  }
-  if (!isDash) return;
+  if (page !== null && !user) { location.href = 'index.html'; return; }
+  if (page === null && user)  { location.href = 'dashboard.html'; return; }
+  if (page === null) return;
 
   const name = user.username || user.email;
-  document.getElementById('sidebar-user').textContent = name;
+  const sidebarUser = document.getElementById('sidebar-user');
+  if (sidebarUser) sidebarUser.textContent = name;
   const avatarEl = document.getElementById('user-avatar-char');
   if (avatarEl) avatarEl.textContent = name.charAt(0).toUpperCase();
+
+  document.querySelectorAll('[data-page]').forEach(el => {
+    el.classList.toggle('active', el.dataset.page === page);
+  });
+
   loadSidebarProjects();
   loadSidebarLabels();
-  loadTasks();
   loadNotifications();
+
+  const sp = new URLSearchParams(location.search);
+  if (page === 'tasks') {
+    _taskFilter = sp.get('filter') || 'all';
+    _labelFilter = sp.get('label') ? Number(sp.get('label')) : null;
+    loadTasks();
+  } else if (page === 'calendar')      loadCalendar();
+  else if (page === 'notes')           loadNotes();
+  else if (page === 'habits')          loadHabits();
+  else if (page === 'goals')           loadGoals();
+  else if (page === 'time')            { applyFocusSettings(); loadTimeEntries(); }
+  else if (page === 'labels')          loadLabels();
+  else if (page === 'notifications')   loadNotifications();
+  else if (page === 'projects')        loadProjects();
+  else if (page === 'settings')        loadSettings();
+  else if (page === 'profile')         loadProfile();
 })();

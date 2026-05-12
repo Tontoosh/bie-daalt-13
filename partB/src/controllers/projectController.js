@@ -8,7 +8,10 @@ async function getProject(req, res, next) {
   try { res.json(await s.getProjectById(Number(req.params.id))); } catch(e){ next(e); }
 }
 async function createProject(req, res, next) {
-  try { res.status(201).json(await s.createProject(req.body)); } catch(e){ next(e); }
+  try {
+    if (!req.body.name) return res.status(400).json({ error: 'name is required' });
+    res.status(201).json(await s.createProject(req.body));
+  } catch(e){ next(e); }
 }
 async function updateProject(req, res, next) {
   try { res.json(await s.updateProject(Number(req.params.id), req.body)); } catch(e){ next(e); }
@@ -22,7 +25,7 @@ async function getMembers(req, res, next) {
 async function addMember(req, res, next) {
   try {
     await s.addMember(Number(req.params.id), Number(req.body.userId), req.body.role);
-    res.status(204).end();
+    res.status(201).json({ ok: true });
   } catch(e){ next(e); }
 }
 async function removeMember(req, res, next) {

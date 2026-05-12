@@ -11,8 +11,19 @@ async function teardownTestDb() {
   const pool = getPool();
   await pool.execute('SET FOREIGN_KEY_CHECKS = 0');
   await pool.execute('TRUNCATE TABLE task_labels');
+  await pool.execute('TRUNCATE TABLE task_comments');
   await pool.execute('TRUNCATE TABLE tasks');
   await pool.execute('TRUNCATE TABLE labels');
+  await pool.execute('TRUNCATE TABLE habit_logs');
+  await pool.execute('TRUNCATE TABLE habits');
+  await pool.execute('TRUNCATE TABLE goal_milestones');
+  await pool.execute('TRUNCATE TABLE goals');
+  await pool.execute('TRUNCATE TABLE notes');
+  await pool.execute('TRUNCATE TABLE project_members');
+  await pool.execute('TRUNCATE TABLE projects');
+  await pool.execute('TRUNCATE TABLE notifications');
+  await pool.execute('TRUNCATE TABLE time_entries');
+  await pool.execute('TRUNCATE TABLE user_settings');
   await pool.execute('TRUNCATE TABLE users');
   await pool.execute('SET FOREIGN_KEY_CHECKS = 1');
 }

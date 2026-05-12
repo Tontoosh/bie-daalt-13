@@ -8,7 +8,10 @@ async function getNote(req, res, next) {
   try { res.json(await s.getNoteById(Number(req.params.id))); } catch(e){ next(e); }
 }
 async function createNote(req, res, next) {
-  try { res.status(201).json(await s.createNote(req.body)); } catch(e){ next(e); }
+  try {
+    if (!req.body.title) return res.status(400).json({ error: 'title is required' });
+    res.status(201).json(await s.createNote(req.body));
+  } catch(e){ next(e); }
 }
 async function updateNote(req, res, next) {
   try { res.json(await s.updateNote(Number(req.params.id), req.body)); } catch(e){ next(e); }

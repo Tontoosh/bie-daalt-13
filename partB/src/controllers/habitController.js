@@ -8,7 +8,10 @@ async function getHabit(req, res, next) {
   try { res.json(await s.getHabitById(Number(req.params.id))); } catch(e){ next(e); }
 }
 async function createHabit(req, res, next) {
-  try { res.status(201).json(await s.createHabit(req.body)); } catch(e){ next(e); }
+  try {
+    if (!req.body.name) return res.status(400).json({ error: 'name is required' });
+    res.status(201).json(await s.createHabit(req.body));
+  } catch(e){ next(e); }
 }
 async function updateHabit(req, res, next) {
   try { res.json(await s.updateHabit(Number(req.params.id), req.body)); } catch(e){ next(e); }
@@ -26,6 +29,6 @@ async function getLogs(req, res, next) {
   try { res.json(await s.getLogs(Number(req.params.id), req.query)); } catch(e){ next(e); }
 }
 async function getStreak(req, res, next) {
-  try { res.json({ streak: await s.getStreak(Number(req.params.id)) }); } catch(e){ next(e); }
+  try { res.json(await s.getStreak(Number(req.params.id))); } catch(e){ next(e); }
 }
 module.exports = { listHabits, getHabit, createHabit, updateHabit, deleteHabit, logHabit, getLogs, getStreak };

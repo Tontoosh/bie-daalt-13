@@ -3,21 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TaskFlow — Tasks</title>
+  <title>TaskFlow — Calendar</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="layout">
-
-  <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-logo">
       <div class="sidebar-logo-icon">⚡</div>
       <span class="sidebar-logo-text">TaskFlow</span>
     </div>
-
     <button class="btn-add-task" onclick="openTaskModal()">+ Add Task</button>
-
     <a class="nav-link" href="dashboard.html" data-page="tasks">
       <svg class="nav-svg" viewBox="0 0 16 16"><path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
       All Tasks
@@ -30,17 +26,13 @@
       <svg class="nav-svg" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M8 5v3l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/></svg>
       Upcoming
     </a>
-
     <div class="sidebar-divider"></div>
-
     <div class="nav-section-label">
       <span>Projects</span>
       <button onclick="location.href='projects.html'" class="nav-add-btn">+</button>
     </div>
     <div id="sidebar-projects"></div>
-
     <div class="sidebar-divider"></div>
-
     <a class="nav-link" href="notes.html" data-page="notes">
       <svg class="nav-svg" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/></svg>
       Notes
@@ -63,68 +55,51 @@
     </a>
     <div class="nav-section-label">
       <span>Labels</span>
-      <button onclick="location.href='labels.html'" class="nav-add-btn" title="Manage labels">⚙</button>
+      <button onclick="location.href='labels.html'" class="nav-add-btn">⚙</button>
     </div>
     <div id="sidebar-labels"></div>
-
     <div class="sidebar-divider"></div>
-
     <a class="nav-link" href="notifications.html" data-page="notifications">
       <svg class="nav-svg" viewBox="0 0 16 16"><path d="M8 2a5 5 0 015 5v2l1 2H2l1-2V7a5 5 0 015-5zM6.5 13a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/></svg>
       Notifications <span id="notif-badge"></span>
     </a>
-
     <div class="sidebar-bottom">
-      <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Toggle theme">
+      <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn">
         <span id="theme-icon">☀</span> <span id="theme-label">Light mode</span>
       </button>
       <div class="user-chip" onclick="location.href='profile.html'">
         <div class="user-avatar" id="user-avatar-char">?</div>
         <span class="user-name" id="sidebar-user">User</span>
-        <button class="btn-logout" onclick="event.stopPropagation();logout()" title="Sign out">
+        <button class="btn-logout" onclick="event.stopPropagation();logout()">
           <svg viewBox="0 0 16 16" width="14" height="14"><path d="M10 3l4 5-4 5M14 8H6M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       </div>
     </div>
   </aside>
 
-  <!-- MAIN -->
   <main class="main">
-    <section id="section-tasks">
-      <div class="task-header">
-        <div class="task-header-top">
-          <h1 class="task-view-title" id="task-view-title">All Tasks</h1>
-          <div class="filters-inline">
-            <select id="filter-status" onchange="loadTasks()">
-              <option value="">All status</option>
-              <option value="todo">Todo</option>
-              <option value="in-progress">In Progress</option>
-              <option value="in-review">In Review</option>
-              <option value="done">Done</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-            <select id="filter-priority" onchange="loadTasks()">
-              <option value="">All priority</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
-            </select>
-            <input type="text" id="filter-search" placeholder="Search…" oninput="loadTasks()">
-          </div>
-        </div>
+    <section id="section-calendar">
+      <div class="section-header">
+        <div><div class="section-title">Calendar</div></div>
+        <button class="btn-new" onclick="openModal('event-modal')">+ New Event</button>
       </div>
-      <div class="task-list-wrap">
-        <div id="task-list" class="task-list"></div>
-        <button class="add-task-inline" onclick="openTaskModal()">
-          <span class="add-task-plus">+</span> Add task
-        </button>
+      <div class="cal-nav">
+        <button class="cal-btn" onclick="calPrev()">‹</button>
+        <span class="cal-nav-title" id="cal-title"></span>
+        <button class="cal-btn" onclick="calNext()">›</button>
       </div>
+      <div class="cal-weekdays">
+        <div class="cal-weekday">Mon</div><div class="cal-weekday">Tue</div>
+        <div class="cal-weekday">Wed</div><div class="cal-weekday">Thu</div>
+        <div class="cal-weekday">Fri</div><div class="cal-weekday">Sat</div>
+        <div class="cal-weekday">Sun</div>
+      </div>
+      <div id="cal-grid" class="cal-grid"></div>
+      <div id="event-list-day" style="margin-top:16px"></div>
     </section>
   </main>
 </div>
 
-<!-- MODALS -->
 <div id="task-modal" class="modal" style="display:none">
   <div class="modal-box">
     <div class="modal-header">
@@ -134,17 +109,11 @@
     <form onsubmit="saveTask(event)">
       <input type="hidden" id="task-id">
       <label>Title *</label><input type="text" id="task-title" placeholder="Task name…" required>
-      <label>Description</label><textarea id="task-desc" rows="2" placeholder="Add a description…"></textarea>
+      <label>Description</label><textarea id="task-desc" rows="2"></textarea>
       <label>Status</label>
-      <select id="task-status">
-        <option value="todo">Todo</option><option value="in-progress">In Progress</option>
-        <option value="in-review">In Review</option><option value="done">Done</option><option value="cancelled">Cancelled</option>
-      </select>
+      <select id="task-status"><option value="todo">Todo</option><option value="in-progress">In Progress</option><option value="in-review">In Review</option><option value="done">Done</option><option value="cancelled">Cancelled</option></select>
       <label>Priority</label>
-      <select id="task-priority">
-        <option value="low">Low</option><option value="medium" selected>Medium</option>
-        <option value="high">High</option><option value="urgent">Urgent</option>
-      </select>
+      <select id="task-priority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select>
       <label>Due Date</label><input type="datetime-local" id="task-due">
       <label>Project</label><select id="task-project"><option value="">— No project —</option></select>
       <label>Assign to</label><select id="task-assignee"><option value="">— Unassigned —</option></select>
@@ -174,87 +143,24 @@
   </div>
 </div>
 
-<div id="panel-overlay" class="panel-overlay" onclick="closeDetailPanel()"></div>
-<div id="task-detail-panel" class="detail-modal">
-  <div class="dm-topbar">
-    <span class="dm-breadcrumb" id="detail-breadcrumb">My Tasks</span>
-    <div class="dm-topbar-actions">
-      <button class="dm-complete-btn" id="detail-complete-btn" onclick="toggleDetailDone()">
-        <span id="detail-complete-icon">○</span> Mark complete
-      </button>
-      <button class="dm-icon-btn" id="detail-delete-btn" title="Delete task">🗑</button>
-      <button class="dm-icon-btn" onclick="closeDetailPanel()" title="Close">✕</button>
+<div id="event-modal" class="modal" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">New Event</span>
+      <button class="modal-close" onclick="closeModal('event-modal')">✕</button>
     </div>
-  </div>
-  <div class="dm-body">
-    <textarea id="detail-title" class="dm-title" rows="1" placeholder="Task name"
-      onblur="saveDetailFields()" onkeydown="if(event.key==='Enter'){event.preventDefault();saveDetailFields()}"></textarea>
-    <div class="dm-chips">
-      <button class="dm-chip dm-chip-due" onclick="document.getElementById('detail-due').showPicker?.()">
-        <span>📅</span> <span id="dm-chip-due-label">Set due date</span>
-        <input type="datetime-local" id="detail-due" style="display:none" onchange="saveDue()">
-      </button>
-      <div class="dm-chip">
-        <span>◈</span> <span id="dm-chip-project">No project</span>
+    <form onsubmit="saveEvent(event)">
+      <label>Title *</label><input type="text" id="event-title" required>
+      <label>Start *</label><input type="datetime-local" id="event-start" required>
+      <label>End *</label><input type="datetime-local" id="event-end" required>
+      <label>Location</label><input type="text" id="event-location" placeholder="Optional">
+      <label>Color</label><input type="color" id="event-color" value="#7c6af7">
+      <label class="check-label"><input type="checkbox" id="event-allday"> All day</label>
+      <div class="modal-actions">
+        <button type="submit" class="btn-primary">Create</button>
+        <button type="button" class="btn-ghost" onclick="closeModal('event-modal')">Cancel</button>
       </div>
-      <div class="dm-chip dm-chip-priority" id="dm-chip-priority-wrap">
-        <span id="dm-chip-priority-icon">⚑</span>
-        <select id="detail-priority" class="dm-chip-select" onchange="saveDetailField('priority',this.value);updatePriorityChip()">
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-          <option value="urgent">Urgent</option>
-        </select>
-      </div>
-    </div>
-    <div class="dm-field-row">
-      <span class="dm-field-label">Status</span>
-      <select id="detail-status" class="dm-field-select" onchange="saveDetailField('status',this.value);updateCompleteBtn()">
-        <option value="todo">Todo</option>
-        <option value="in-progress">In Progress</option>
-        <option value="in-review">In Review</option>
-        <option value="done">Done</option>
-        <option value="cancelled">Cancelled</option>
-      </select>
-    </div>
-    <div class="dm-field-row">
-      <span class="dm-field-label">Assignee</span>
-      <select id="detail-assignee" class="dm-field-select" onchange="saveDetailField('assignee_id', this.value || null)">
-        <option value="">Unassigned</option>
-      </select>
-    </div>
-    <div class="dm-field-row">
-      <span class="dm-field-label">Created</span>
-      <span id="detail-created" class="dm-field-val"></span>
-    </div>
-    <div class="dm-section">
-      <div class="dm-section-label">LABELS</div>
-      <div id="detail-labels" class="dm-labels"></div>
-    </div>
-    <div class="dm-section">
-      <div class="dm-section-label">NOTES</div>
-      <textarea id="detail-desc" class="dm-notes" rows="4" placeholder="Insert your notes here…" onblur="saveDetailFields()"></textarea>
-    </div>
-    <div class="dm-section">
-      <div class="dm-section-label">SUBTASKS <span id="dm-subtask-count" class="dm-count"></span></div>
-      <div id="detail-subtasks" class="dm-subtasks"></div>
-      <div class="dm-add-subtask">
-        <span class="task-check" style="width:16px;height:16px"></span>
-        <input type="text" id="subtask-input" class="dm-subtask-input" placeholder="Add a new subtask…" onkeydown="if(event.key==='Enter')addSubtask()">
-      </div>
-    </div>
-    <div class="dm-section">
-      <div class="dm-section-label">COMMENTS</div>
-      <div id="detail-comments" class="dm-comments"></div>
-      <div class="dm-comment-compose">
-        <div class="comment-avatar" id="detail-comment-avatar">?</div>
-        <div style="flex:1">
-          <textarea id="detail-comment-text" class="comment-input" placeholder="Add a comment… (Ctrl+Enter to post)" rows="2"
-            onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))submitComment()"></textarea>
-          <button class="dm-post-btn" onclick="submitComment()">Post</button>
-        </div>
-      </div>
-    </div>
+    </form>
   </div>
 </div>
 
