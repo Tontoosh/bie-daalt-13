@@ -20,6 +20,6 @@ async function deleteEntry(req, res, next) {
   try { await s.deleteEntry(Number(req.params.id)); res.status(204).end(); } catch(e){ next(e); }
 }
 async function getTotals(req, res, next) {
-  try { res.json(await s.getTotalByTask(req.query.user_id)); } catch(e){ next(e); }
+  try { res.json(await s.getTotals(req.query.user_id, req.query)); } catch(e){ next(e); }
 }
 module.exports = { listEntries, startTimer, stopTimer, createEntry, deleteEntry, getTotals };

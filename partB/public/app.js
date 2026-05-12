@@ -179,7 +179,7 @@ function showSection(name, taskFilter, labelId) {
   const loaders = {
     tasks: loadTasks, projects: loadProjects, notes: loadNotes,
     calendar: loadCalendar, habits: loadHabits, goals: loadGoals,
-    time: loadTimeEntries, labels: loadLabels,
+    time: applyFocusSettings, labels: loadLabels,
     notifications: loadNotifications, settings: loadSettings,
     profile: loadProfile,
   };
@@ -1646,42 +1646,6 @@ async function deleteCurrentGoal() {
   closeModal('goal-detail-modal');
 }
 
-async function loadTimeEntries() {
-  applyFocusSettings();
-  const entries = await apiFetch(`/api/time?user_id=${userId()}`).catch(() => []);
-  const tbody = document.getElementById('time-list');
-  tbody.innerHTML = entries.length
-    ? entries.map(te => `
-      <tr>
-        <td>${esc(te.task_title || 'General')}</td>
-        <td>${esc(te.description || '')}</td>
-        <td>${dateTimeValue(te.started_at)}</td>
-        <td>${formatSeconds(te.duration_s)}</td>
-        <td><button class="btn-sm btn-del" onclick="deleteTimeEntry(${te.id})">Delete</button></td>
-      </tr>`).join('')
-    : '<tr><td colspan="5" class="table-empty">No time entries yet</td></tr>';
-}
-
-async function saveTimeEntry(e) {
-  e.preventDefault();
-  try {
-    await apiFetch('/api/time', {
-      method: 'POST',
-      body: JSON.stringify({
-        userId: userId(),
-        description: document.getElementById('te-desc').value || null,
-        startedAt: toMysqlDateTime(document.getElementById('te-start').value),
-        endedAt: toMysqlDateTime(document.getElementById('te-end').value),
-      }),
-    });
-    e.target.reset();
-    closeModal('time-modal');
-    loadTimeEntries();
-  } catch (err) {
-    showError(err);
-  }
-}
-
 async function toggleTimer() {
   const btn = document.getElementById('timer-btn');
   if (btn.disabled) return;
@@ -1721,6 +1685,9 @@ function focusStorageKey() {
 
 function getFocusSettings() {
   const defaults = {
+    title: 'study with me',
+    subtitle: 'TaskFlow focus room',
+    motivationWords: 'Deep work\nStay with it\nOne session at a time',
     backgroundUrl: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1800&q=80',
     youtubeUrl: '',
     discordUrl: '',
@@ -1737,6 +1704,9 @@ function getFocusSettings() {
 function saveFocusSettings() {
   const settings = {
     ...getFocusSettings(),
+    title: document.getElementById('focus-title')?.value.trim() || 'study with me',
+    subtitle: document.getElementById('focus-subtitle')?.value.trim() || 'TaskFlow focus room',
+    motivationWords: document.getElementById('focus-motivation-words')?.value || '',
     backgroundUrl: document.getElementById('focus-bg-url')?.value.trim() || '',
     youtubeUrl: document.getElementById('focus-youtube-url')?.value.trim() || '',
     discordUrl: document.getElementById('focus-discord-url')?.value.trim() || '',
@@ -1759,10 +1729,16 @@ function applyFocusSettings() {
   scene.style.setProperty('--focus-bg', `url("${settings.backgroundUrl || fallbackBg}")`);
 
   const bgInput = document.getElementById('focus-bg-url');
+  const titleInput = document.getElementById('focus-title');
+  const subtitleInput = document.getElementById('focus-subtitle');
+  const motivationInput = document.getElementById('focus-motivation-words');
   const ytInput = document.getElementById('focus-youtube-url');
   const discordInput = document.getElementById('focus-discord-url');
   const widgetInput = document.getElementById('focus-discord-widget');
   const noteInput = document.getElementById('focus-quick-note');
+  if (titleInput) titleInput.value = settings.title;
+  if (subtitleInput) subtitleInput.value = settings.subtitle;
+  if (motivationInput) motivationInput.value = settings.motivationWords || '';
   if (bgInput) bgInput.value = settings.backgroundUrl;
   if (ytInput) ytInput.value = settings.youtubeUrl;
   if (discordInput) discordInput.value = settings.discordUrl;
@@ -1771,7 +1747,26 @@ function applyFocusSettings() {
 
   applyYoutubePlayer(settings.youtubeUrl);
   applyDiscordPanel(settings);
+  applyFocusBrand(settings);
   renderFocusClock();
+}
+
+function applyFocusBrand(settings) {
+  const title = document.getElementById('focus-brand-main');
+  const subtitle = document.getElementById('focus-brand-sub');
+  if (!title || !subtitle) return;
+  const words = (settings.motivationWords || '')
+    .split('\n')
+    .map(word => word.trim())
+    .filter(Boolean);
+  if (words.length) {
+    const index = Math.floor(Date.now() / 60000) % words.length;
+    title.textContent = words[index];
+    subtitle.textContent = settings.subtitle || 'TaskFlow focus room';
+    return;
+  }
+  title.textContent = settings.title || 'study with me';
+  subtitle.textContent = settings.subtitle || 'TaskFlow focus room';
 }
 
 function applyYoutubePlayer(url) {
@@ -1826,11 +1821,41 @@ function toggleFocusPanel(id) {
   el.style.display = el.style.display === 'none' ? '' : 'none';
 }
 
-function setFocusMode(button, minutes) {
-  document.querySelectorAll('.focus-mode').forEach(el => el.classList.toggle('active', el === button));
-  state.focusDurationSeconds = minutes * 60;
+function setFocusMinutes(minutes) {
+  const safeMinutes = Math.min(240, Math.max(1, Number(minutes) || 25));
+  state.focusDurationSeconds = safeMinutes * 60;
   state.focusDoneNotified = false;
   if (!state.activeTimerId) renderFocusClock();
+}
+
+function beginTimerEdit() {
+  if (state.activeTimerId) return;
+  const display = document.getElementById('timer-display');
+  if (!display) return;
+  display.value = String(Math.round(state.focusDurationSeconds / 60));
+  display.select();
+}
+
+function commitTimerEdit() {
+  if (state.activeTimerId) return;
+  const display = document.getElementById('timer-display');
+  if (!display) return;
+  const raw = display.value.trim();
+  const minutes = raw.includes(':') ? Number(raw.split(':')[0]) : Number(raw);
+  setFocusMinutes(minutes);
+  renderFocusClock();
+}
+
+function handleTimerEditKey(event) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    event.currentTarget.blur();
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    renderFocusClock();
+    event.currentTarget.blur();
+  }
 }
 
 function resetFocusClock() {
@@ -1847,12 +1872,12 @@ function renderFocusClock() {
   const display = document.getElementById('timer-display');
   if (!display) return;
   if (!state.timerStartedAt) {
-    display.textContent = formatClock(state.focusDurationSeconds);
+    display.value = formatClock(state.focusDurationSeconds);
     return;
   }
   const elapsed = Math.floor((Date.now() - state.timerStartedAt.getTime()) / 1000);
   const remaining = Math.max(0, state.focusDurationSeconds - elapsed);
-  display.textContent = formatClock(remaining);
+  display.value = formatClock(remaining);
   if (remaining === 0 && !state.focusDoneNotified) notifyFocusDone();
 }
 
@@ -1910,12 +1935,6 @@ function showFocusToast(message) {
   toast.classList.add('show');
   window.clearTimeout(showFocusToast._timer);
   showFocusToast._timer = window.setTimeout(() => toast.classList.remove('show'), 6000);
-}
-
-async function deleteTimeEntry(id) {
-  if (!confirmDelete('Delete this time entry?')) return;
-  await apiFetch(`/api/time/${id}`, { method: 'DELETE' }).catch(showError);
-  loadTimeEntries();
 }
 
 async function loadNotifications() {
@@ -2070,7 +2089,7 @@ function currentPage() {
   else if (page === 'notes')           loadNotes();
   else if (page === 'habits')          loadHabits();
   else if (page === 'goals')           loadGoals();
-  else if (page === 'time')            { applyFocusSettings(); loadTimeEntries(); }
+  else if (page === 'time')            applyFocusSettings();
   else if (page === 'labels')          loadLabels();
   else if (page === 'notifications')   loadNotifications();
   else if (page === 'projects')        loadProjects();

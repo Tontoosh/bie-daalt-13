@@ -42,22 +42,17 @@
         <div class="focus-shade"></div>
         <div class="focus-topbar">
           <div class="focus-brand">
-            <span class="focus-brand-main">study with me</span>
-            <span class="focus-brand-sub">TaskFlow focus room</span>
+            <span class="focus-brand-main" id="focus-brand-main">study with me</span>
+            <span class="focus-brand-sub" id="focus-brand-sub">TaskFlow focus room</span>
           </div>
           <div class="focus-top-actions">
             <button class="focus-icon-btn" onclick="toggleFocusPanel('focus-discord-panel')">Discord</button>
             <button class="focus-icon-btn" onclick="toggleFocusPanel('focus-settings-panel')">Settings</button>
-            <button class="focus-icon-btn" onclick="openModal('time-modal')">Log</button>
           </div>
         </div>
         <div class="focus-center">
-          <div class="focus-modes" role="group">
-            <button class="focus-mode active" data-focus-minutes="25" onclick="setFocusMode(this, 25)">pomodoro</button>
-            <button class="focus-mode" data-focus-minutes="5" onclick="setFocusMode(this, 5)">short break</button>
-            <button class="focus-mode" data-focus-minutes="15" onclick="setFocusMode(this, 15)">long break</button>
-          </div>
-          <div id="timer-display">00:00:00</div>
+          <input id="timer-display" type="text" value="25:00" inputmode="numeric" aria-label="Timer minutes"
+            onclick="beginTimerEdit()" onfocus="beginTimerEdit()" onblur="commitTimerEdit()" onkeydown="handleTimerEditKey(event)">
           <div class="focus-controls">
             <button id="timer-btn" onclick="toggleTimer()">start</button>
             <button class="focus-round-btn" onclick="resetFocusClock()">C</button>
@@ -70,6 +65,9 @@
         </div>
         <aside class="focus-panel focus-settings-panel" id="focus-settings-panel" style="display:none">
           <div class="focus-panel-head"><strong>Focus Settings</strong><button onclick="toggleFocusPanel('focus-settings-panel')">Close</button></div>
+          <label>Title</label><input type="text" id="focus-title" placeholder="study with me">
+          <label>Subtitle</label><input type="text" id="focus-subtitle" placeholder="TaskFlow focus room">
+          <label>Motivation words</label><textarea id="focus-motivation-words" rows="3" placeholder="Deep work&#10;Stay with it&#10;One session at a time"></textarea>
           <label>Background image URL</label><input type="text" id="focus-bg-url" placeholder="https://...">
           <label>YouTube URL</label><input type="text" id="focus-youtube-url" placeholder="https://www.youtube.com/watch?v=...">
           <label>Discord invite URL</label><input type="text" id="focus-discord-url" placeholder="https://discord.gg/...">
@@ -86,22 +84,11 @@
           </div>
         </aside>
       </div>
-      <div class="focus-history">
-        <div class="focus-history-head">
-          <div><div class="section-title">Time Tracking</div><div class="section-subtitle">Recent sessions and saved notes</div></div>
-          <button class="btn-new" onclick="openModal('time-modal')">+ Log Time</button>
-        </div>
-        <table class="data-table">
-          <thead><tr><th>Task</th><th>Description</th><th>Started</th><th>Duration</th><th></th></tr></thead>
-          <tbody id="time-list"></tbody>
-        </table>
-      </div>
     </section>
   </main>
 </div>
 <div id="task-modal" class="modal" style="display:none"><div class="modal-box"><div class="modal-header"><span class="modal-title" id="task-modal-title">New Task</span><button class="modal-close" onclick="closeModal('task-modal')">✕</button></div><form onsubmit="saveTask(event)"><input type="hidden" id="task-id"><label>Title *</label><input type="text" id="task-title" required><label>Description</label><textarea id="task-desc" rows="2"></textarea><label>Status</label><select id="task-status"><option value="todo">Todo</option><option value="in-progress">In Progress</option><option value="in-review">In Review</option><option value="done">Done</option><option value="cancelled">Cancelled</option></select><label>Priority</label><select id="task-priority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select><label>Due Date</label><input type="datetime-local" id="task-due"><label>Project</label><select id="task-project"><option value="">No project</option></select><label>Assign to</label><select id="task-assignee"><option value="">Unassigned</option></select><label>Label</label><select id="task-label"><option value="">No label</option></select><div class="modal-actions"><button type="submit" class="btn-primary">Save Task</button><button type="button" class="btn-ghost" onclick="closeModal('task-modal')">Cancel</button></div></form></div></div>
 <div id="project-modal" class="modal" style="display:none"><div class="modal-box"><div class="modal-header"><span class="modal-title">New Project</span><button class="modal-close" onclick="closeModal('project-modal')">✕</button></div><form onsubmit="saveProject(event)"><label>Name *</label><input type="text" id="proj-name" required><label>Description</label><textarea id="proj-desc" rows="2"></textarea><label>Color</label><input type="color" id="proj-color" value="#7c6af7"><div class="modal-actions"><button type="submit" class="btn-primary">Create</button><button type="button" class="btn-ghost" onclick="closeModal('project-modal')">Cancel</button></div></form></div></div>
-<div id="time-modal" class="modal" style="display:none"><div class="modal-box"><div class="modal-header"><span class="modal-title">Log Time</span><button class="modal-close" onclick="closeModal('time-modal')">✕</button></div><form onsubmit="saveTimeEntry(event)"><label>Description</label><input type="text" id="te-desc" placeholder="What did you work on?"><label>Start *</label><input type="datetime-local" id="te-start" required><label>End</label><input type="datetime-local" id="te-end"><div class="modal-actions"><button type="submit" class="btn-primary">Save</button><button type="button" class="btn-ghost" onclick="closeModal('time-modal')">Cancel</button></div></form></div></div>
 <script src="app.js"></script>
 </body>
 </html>

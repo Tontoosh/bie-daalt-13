@@ -12,6 +12,28 @@ function getPool() {
   return pool;
 }
 
+async function ensureColumn(conn, table, column, definition) {
+  const [rows] = await conn.execute(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    [table, column]
+  );
+  if (!rows.length) {
+    await conn.execute(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+  }
+}
+
+async function ensureIndex(conn, table, indexName, column) {
+  const [rows] = await conn.execute(
+    `SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?`,
+    [table, indexName]
+  );
+  if (!rows.length) {
+    await conn.execute(`ALTER TABLE \`${table}\` ADD INDEX \`${indexName}\` (\`${column}\`)`);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Each CREATE TABLE is a separate execute() call.
 // multipleStatements is intentionally OFF — SQL injection protection.
@@ -398,6 +420,8 @@ async function initSchema() {
       CREATE TABLE IF NOT EXISTS time_entries (
         id          INT UNSIGNED  NOT NULL AUTO_INCREMENT,
         task_id     INT UNSIGNED,
+        goal_id     INT UNSIGNED,
+        habit_id    INT UNSIGNED,
         user_id     INT UNSIGNED  NOT NULL,
         description VARCHAR(300),
         started_at  DATETIME      NOT NULL,
@@ -409,13 +433,21 @@ async function initSchema() {
         PRIMARY KEY (id),
         CONSTRAINT fk_te_task FOREIGN KEY (task_id)
           REFERENCES tasks(id) ON DELETE SET NULL,
+        CONSTRAINT fk_te_habit FOREIGN KEY (habit_id)
+          REFERENCES habits(id) ON DELETE SET NULL,
         CONSTRAINT fk_te_user FOREIGN KEY (user_id)
           REFERENCES users(id) ON DELETE CASCADE,
         INDEX idx_te_task    (task_id),
+        INDEX idx_te_goal    (goal_id),
+        INDEX idx_te_habit   (habit_id),
         INDEX idx_te_user    (user_id),
         INDEX idx_te_started (user_id, started_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    await ensureColumn(conn, 'time_entries', 'goal_id', 'INT UNSIGNED NULL AFTER task_id');
+    await ensureColumn(conn, 'time_entries', 'habit_id', 'INT UNSIGNED NULL AFTER goal_id');
+    await ensureIndex(conn, 'time_entries', 'idx_te_goal', 'goal_id');
+    await ensureIndex(conn, 'time_entries', 'idx_te_habit', 'habit_id');
 
     // ── 21. GOALS (OKR-style) ─────────────────────────────────────────────────
     await conn.execute(`
