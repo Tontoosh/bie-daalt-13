@@ -1670,7 +1670,6 @@ async function toggleTimer() {
       btn.textContent = 'start';
       btn.classList.remove('running');
       renderFocusClock();
-      loadTimeEntries();
     }
   } catch (err) {
     showError(err);
